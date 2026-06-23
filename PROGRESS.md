@@ -23,12 +23,13 @@
   - anon 키 대신 신형 **Publishable 키**(`sb_publishable_...`) 사용 — 역할 동일
   - 연결 테스트 통과: REST 응답 PGRST205("표 없음") = 연결 성공, 개발 서버 HTTP 200
 
-## 바로 다음 할 일 (⑤: 데이터베이스 표 설계)
-연결이 끝났으니 이제 **계정·권한 구조(표/테이블) 설계**로 넘어갑니다.
-- `unolock-docs/설계자료/`의 계정·화면·보상 다이어그램을 근거로 표 구조를 잡는다.
-- 첫 표 후보: 사용자(출제자/학생/학부모 역할), 교재, 문제, 풀이/채점 기록.
-- Supabase 대시보드 SQL Editor 또는 마이그레이션으로 표 생성 → RLS(접근권한) 고려.
-- 그다음: 교재 업로드 → AI 출제(수학) 순서.
+## ⑤ 데이터베이스 표 설계 — 진행 중
+도면 확정: `unolock-docs/설계자료/데이터베이스_설계.md` (3층 11개 시트). SQL은 `supabase/migrations/`.
+- [x] **1층(사람·공간) 생성 완료** — profiles, academies, classes, memberships, guardianships (`0001_layer1_accounts.sql`). 5개 표 HTTP 200 확인. 모두 RLS 잠금 ON.
+  - classes의 난이도 칸은 대표님 요청으로 제거(난이도는 반 이름에 포함).
+- [ ] **2층(콘텐츠) ← 바로 다음**: materials(교재), missions(미션).
+- [ ] 3층(기록): attempts, questions, answers, notifications.
+- [ ] 그 후: RLS 규칙(정보 비대칭) 추가 → 교재 업로드 → AI 출제(수학).
 
 ## 노트북에서 처음 시작하기
 1. **Git, Node.js, VS Code** 설치 (없으면)
