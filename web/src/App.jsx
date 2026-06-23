@@ -21,16 +21,30 @@ function App() {
   return <Center>{session ? <LoggedIn session={session} /> : <AuthForm />}</Center>
 }
 
-// 로그인된 모습 — 이메일과 로그아웃 버튼
+// 로그인된 모습 — 이메일·이름·역할과 로그아웃 버튼
 function LoggedIn({ session }) {
+  const [profile, setProfile] = useState(null)
+  const [loaded, setLoaded] = useState(false)
+
+  // 권한 규칙(RLS)이 열려 있으면 자기 profiles 줄을 읽어옵니다.
+  useEffect(() => {
+    supabase.from('profiles').select('role, full_name').eq('id', session.user.id).maybeSingle()
+      .then(({ data }) => { setProfile(data); setLoaded(true) })
+  }, [session.user.id])
+
+  const roleLabel = { teacher: '출제자', student: '학생', parent: '학부모' }[profile?.role] || profile?.role
+
   return (
     <div style={card}>
       <div style={{ fontSize: 56, textAlign: 'center' }}>✅</div>
       <h1 style={h1}>로그인됐어요!</h1>
       <p style={{ ...sub, marginBottom: 18 }}>
-        출제자 계정으로 접속 중<br />
-        <b style={{ color: '#222' }}>{session.user.email}</b>
+        {profile?.full_name && <><b style={{ color: '#222' }}>{profile.full_name}</b> ({roleLabel})<br /></>}
+        {session.user.email}
       </p>
+      {loaded && !profile && (
+        <p style={errBox}>프로필을 못 읽었어요. 권한 규칙(RLS)이 켜졌는지 확인해 주세요.</p>
+      )}
       <button style={btnGhost} onClick={() => supabase.auth.signOut()}>로그아웃</button>
       <p style={foot}>UnoLock · 출제자 웹</p>
     </div>
