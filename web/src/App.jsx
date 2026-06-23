@@ -2,64 +2,161 @@ import { useEffect, useState } from 'react'
 import { supabase, hasKeys } from './supabaseClient'
 
 function App() {
-  const [status, setStatus] = useState('checking') // checking | missing | connected | badkey | error
-  const [detail, setDetail] = useState('')
+  const [session, setSession] = useState(null)
+  const [ready, setReady] = useState(false)
 
+  // 로그인 상태를 확인하고, 바뀔 때마다 따라갑니다.
   useEffect(() => {
-    if (!hasKeys) {
-      setStatus('missing')
-      return
-    }
-    // 가벼운 시험 요청을 보내 두뇌(Supabase)에 실제로 닿는지 확인합니다.
-    // 아직 표(table)가 하나도 없어서 "표 없음" 응답이 오는데, 그건 곧 "연결 성공"이라는 뜻이에요.
-    ;(async () => {
-      const { error } = await supabase.from('__healthcheck__').select('*').limit(1)
-      if (!error) {
-        setStatus('connected')
-        return
-      }
-      const msg = (error.message || '').toLowerCase()
-      const code = error.code || ''
-      const tableMissing =
-        msg.includes('does not exist') ||
-        msg.includes('not find the table') ||
-        code === '42P01' ||
-        code === 'PGRST205' ||
-        code === 'PGRST116'
-      const keyProblem = msg.includes('api key') || msg.includes('jwt') || msg.includes('invalid')
-
-      if (tableMissing) setStatus('connected')
-      else if (keyProblem) { setStatus('badkey'); setDetail(error.message) }
-      else { setStatus('error'); setDetail(error.message) }
-    })()
+    if (!hasKeys) { setReady(true); return }
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session)
+      setReady(true)
+    })
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    return () => sub.subscription.unsubscribe()
   }, [])
 
-  const view = {
-    checking: { emoji: '⏳', title: '연결 확인 중…', sub: '잠깐만요.' },
-    missing: { emoji: '🔌', title: '아직 키가 비어있어요', sub: '.env.local 빈칸에 Supabase 주소와 공개키를 넣어주세요.' },
-    connected: { emoji: '✅', title: 'Supabase에 연결됐어요!', sub: '두뇌(Supabase)와 웹이 정상적으로 이어졌습니다.' },
-    badkey: { emoji: '⚠️', title: '키가 잘못된 것 같아요', sub: '주소나 공개키를 다시 확인해 주세요.' },
-    error: { emoji: '❓', title: '연결 확인 중 문제가 있어요', sub: '아래 메시지를 저에게 알려주세요.' },
-  }[status]
+  if (!hasKeys) return <Center><Title emoji="🔌" text="키가 비어있어요" sub=".env.local 을 확인해 주세요." /></Center>
+  if (!ready) return <Center><Title emoji="⏳" text="확인 중…" /></Center>
+  return <Center>{session ? <LoggedIn session={session} /> : <AuthForm />}</Center>
+}
 
+// 로그인된 모습 — 이메일과 로그아웃 버튼
+function LoggedIn({ session }) {
   return (
-    <div style={{
-      minHeight: '100vh', display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center', gap: 12,
-      fontFamily: 'Pretendard, system-ui, sans-serif', textAlign: 'center', padding: 24,
-    }}>
-      <div style={{ fontSize: 72 }}>{view.emoji}</div>
-      <h1 style={{ fontSize: 26, margin: 0 }}>{view.title}</h1>
-      <p style={{ fontSize: 15, color: '#888', maxWidth: 420, margin: 0 }}>{view.sub}</p>
-      {detail && (
-        <pre style={{
-          marginTop: 10, fontSize: 12, color: '#c0392b', background: '#fff0f0',
-          padding: '10px 14px', borderRadius: 10, maxWidth: 460, whiteSpace: 'pre-wrap',
-        }}>{detail}</pre>
-      )}
-      <p style={{ fontSize: 12, color: '#bbb', marginTop: 16 }}>UnoLock · 출제자 웹 (연결 확인용 임시 화면)</p>
+    <div style={card}>
+      <div style={{ fontSize: 56, textAlign: 'center' }}>✅</div>
+      <h1 style={h1}>로그인됐어요!</h1>
+      <p style={{ ...sub, marginBottom: 18 }}>
+        출제자 계정으로 접속 중<br />
+        <b style={{ color: '#222' }}>{session.user.email}</b>
+      </p>
+      <button style={btnGhost} onClick={() => supabase.auth.signOut()}>로그아웃</button>
+      <p style={foot}>UnoLock · 출제자 웹</p>
     </div>
   )
 }
+
+// 로그인 / 가입 폼
+function AuthForm() {
+  const [mode, setMode] = useState('login') // login | signup
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const submit = async (e) => {
+    e.preventDefault()
+    setError(''); setBusy(true)
+    try {
+      if (mode === 'signup') {
+        const { error } = await supabase.auth.signUp({
+          email, password,
+          options: { data: { full_name: name, role: 'teacher' } },
+        })
+        if (error) throw error
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) throw error
+      }
+      // 성공하면 onAuthStateChange 가 화면을 자동으로 바꿉니다.
+    } catch (err) {
+      setError(translate(err.message))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form style={card} onSubmit={submit}>
+      <h1 style={h1}>{mode === 'login' ? '로그인' : '출제자 가입'}</h1>
+      <p style={sub}>UnoLock 출제자 대시보드</p>
+
+      {mode === 'signup' && (
+        <input style={input} placeholder="이름 (예: 김선생)" value={name}
+          onChange={(e) => setName(e.target.value)} />
+      )}
+      <input style={input} type="email" placeholder="이메일" value={email}
+        required onChange={(e) => setEmail(e.target.value)} />
+      <input style={input} type="password" placeholder="비밀번호 (6자 이상)" value={password}
+        required minLength={6} onChange={(e) => setPassword(e.target.value)} />
+
+      {error && <p style={errBox}>{error}</p>}
+
+      <button style={btn} type="submit" disabled={busy}>
+        {busy ? '처리 중…' : mode === 'login' ? '로그인' : '가입하기'}
+      </button>
+
+      <button type="button" style={linkBtn}
+        onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError('') }}>
+        {mode === 'login' ? '계정이 없어요 → 가입하기' : '이미 계정이 있어요 → 로그인'}
+      </button>
+      <p style={foot}>UnoLock · 출제자 웹</p>
+    </form>
+  )
+}
+
+// 자주 나오는 영어 오류만 한국어로 바꾸고, 모르는 건 원문을 그대로 보여줍니다.
+function translate(msg = '') {
+  const m = msg.toLowerCase()
+  if (m.includes('invalid login')) return '이메일 또는 비밀번호가 맞지 않아요.'
+  if (m.includes('already registered') || m.includes('already been registered'))
+    return '이미 가입된 이메일이에요. 로그인해 주세요.'
+  if (m.includes('signup') && m.includes('disabled'))
+    return '가입이 꺼져 있어요. Supabase → Authentication 설정에서 "Allow new users to sign up"을 켜주세요.'
+  if (m.includes('signups not allowed'))
+    return '가입이 막혀 있어요. Supabase Authentication 설정을 확인해 주세요.'
+  if (m.includes('database error'))
+    return '가입 중 DB 오류예요(트리거 의심). 원문: ' + msg
+  if (m.includes('password'))
+    return '비밀번호는 6자 이상이어야 해요.'
+  if (m.includes('unable to validate email') || (m.includes('email') && m.includes('invalid')))
+    return '이메일 형식을 확인해 주세요.'
+  // 모르는 오류는 원문 그대로 (진단용)
+  return msg || '알 수 없는 오류예요.'
+}
+
+// ---- 간단한 스타일 ----
+const Center = ({ children }) => (
+  <div style={{
+    minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontFamily: 'Pretendard, system-ui, sans-serif', padding: 24, background: '#f6f7f9',
+  }}>{children}</div>
+)
+const Title = ({ emoji, text, sub }) => (
+  <div style={{ textAlign: 'center' }}>
+    <div style={{ fontSize: 64 }}>{emoji}</div>
+    <h1 style={h1}>{text}</h1>
+    {sub && <p style={sub}>{sub}</p>}
+  </div>
+)
+const card = {
+  width: 340, background: '#fff', borderRadius: 18, padding: '32px 28px',
+  boxShadow: '0 8px 30px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column',
+}
+const h1 = { fontSize: 24, margin: '0 0 4px', textAlign: 'center', color: '#1a1a1a' }
+const sub = { fontSize: 13, color: '#888', textAlign: 'center', margin: '0 0 20px' }
+const input = {
+  width: '100%', boxSizing: 'border-box', padding: '12px 14px', marginBottom: 10,
+  border: '1px solid #ddd', borderRadius: 10, fontSize: 15,
+}
+const btn = {
+  marginTop: 6, padding: '13px', border: 'none', borderRadius: 10, fontSize: 15,
+  fontWeight: 700, color: '#fff', background: '#2E75B6', cursor: 'pointer',
+}
+const btnGhost = {
+  padding: '11px', border: '1px solid #ddd', borderRadius: 10, fontSize: 14,
+  background: '#fff', color: '#555', cursor: 'pointer',
+}
+const linkBtn = {
+  marginTop: 14, border: 'none', background: 'none', color: '#2E75B6',
+  fontSize: 13, cursor: 'pointer',
+}
+const errBox = {
+  fontSize: 13, color: '#c0392b', background: '#fff0f0', padding: '9px 12px',
+  borderRadius: 8, margin: '4px 0 8px', textAlign: 'center',
+}
+const foot = { fontSize: 11, color: '#bbb', textAlign: 'center', marginTop: 18 }
 
 export default App
