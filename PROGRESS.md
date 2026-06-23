@@ -19,15 +19,16 @@
 - [x] Supabase 무료 프로젝트 생성 (Seoul 리전, Free 요금제)
 - [x] 출제자 웹 뼈대 생성 (`web/`, Vite + React) — 브라우저 구동 확인됨
 - [x] `supabase-js` 설치 + 연결 코드(`web/src/supabaseClient.js`) + 연결 확인 화면(`web/src/App.jsx`)
-- [ ] **④-4: Supabase 키를 `web/.env.local` 에 입력 ← 바로 다음 할 일**
+- [x] **④-4: Supabase 키를 `web/.env.local` 에 입력 + 연결 확인 완료** (2026-06-23 노트북에서)
+  - anon 키 대신 신형 **Publishable 키**(`sb_publishable_...`) 사용 — 역할 동일
+  - 연결 테스트 통과: REST 응답 PGRST205("표 없음") = 연결 성공, 개발 서버 HTTP 200
 
-## 바로 다음 할 일 (④-4)
-`web/.env.local` 파일의 두 빈칸에 Supabase 값을 직접 입력:
-- `VITE_SUPABASE_URL=` → Supabase 대시보드 → Project Settings → **API** → **Project URL**
-- `VITE_SUPABASE_ANON_KEY=` → 같은 화면의 **anon / public 키** (⚠️ secret/service_role 키 아님!)
-
-저장 후 `web` 폴더에서 `npm run dev` 재시작 → 브라우저에 **"✅ Supabase에 연결됐어요!"** 뜨면 성공.
-그다음 단계: 데이터베이스 표(계정·권한 구조) 설계 → 교재 업로드 → AI 출제 순서로 진행.
+## 바로 다음 할 일 (⑤: 데이터베이스 표 설계)
+연결이 끝났으니 이제 **계정·권한 구조(표/테이블) 설계**로 넘어갑니다.
+- `unolock-docs/설계자료/`의 계정·화면·보상 다이어그램을 근거로 표 구조를 잡는다.
+- 첫 표 후보: 사용자(출제자/학생/학부모 역할), 교재, 문제, 풀이/채점 기록.
+- Supabase 대시보드 SQL Editor 또는 마이그레이션으로 표 생성 → RLS(접근권한) 고려.
+- 그다음: 교재 업로드 → AI 출제(수학) 순서.
 
 ## 노트북에서 처음 시작하기
 1. **Git, Node.js, VS Code** 설치 (없으면)
