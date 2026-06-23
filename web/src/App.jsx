@@ -21,7 +21,7 @@ function App() {
   return <Center>{session ? <LoggedIn session={session} /> : <AuthForm />}</Center>
 }
 
-// 로그인된 모습 — 이메일·이름·역할과 로그아웃 버튼
+// 로그인된 대시보드 — 프로필 머리말 + 내 학원/반 관리
 function LoggedIn({ session }) {
   const [profile, setProfile] = useState(null)
   const [loaded, setLoaded] = useState(false)
@@ -35,18 +35,96 @@ function LoggedIn({ session }) {
   const roleLabel = { teacher: '출제자', student: '학생', parent: '학부모' }[profile?.role] || profile?.role
 
   return (
-    <div style={card}>
-      <div style={{ fontSize: 56, textAlign: 'center' }}>✅</div>
-      <h1 style={h1}>로그인됐어요!</h1>
-      <p style={{ ...sub, marginBottom: 18 }}>
-        {profile?.full_name && <><b style={{ color: '#222' }}>{profile.full_name}</b> ({roleLabel})<br /></>}
-        {session.user.email}
-      </p>
+    <div style={panel}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a' }}>
+            {profile?.full_name || session.user.email}
+            {profile && <span style={{ fontSize: 13, color: '#2E75B6', marginLeft: 6 }}>{roleLabel}</span>}
+          </div>
+          <div style={{ fontSize: 12, color: '#999' }}>{session.user.email}</div>
+        </div>
+        <button style={btnGhost} onClick={() => supabase.auth.signOut()}>로그아웃</button>
+      </div>
+
       {loaded && !profile && (
         <p style={errBox}>프로필을 못 읽었어요. 권한 규칙(RLS)이 켜졌는지 확인해 주세요.</p>
       )}
-      <button style={btnGhost} onClick={() => supabase.auth.signOut()}>로그아웃</button>
+
+      <Workspace userId={session.user.id} />
       <p style={foot}>UnoLock · 출제자 웹</p>
+    </div>
+  )
+}
+
+// 내 학원 목록 + 학원 만들기
+function Workspace({ userId }) {
+  const [academies, setAcademies] = useState([])
+  const [name, setName] = useState('')
+  const [err, setErr] = useState('')
+
+  const load = async () => {
+    const { data, error } = await supabase.from('academies').select('id, name').order('created_at')
+    if (error) setErr(error.message); else setAcademies(data || [])
+  }
+  useEffect(() => { load() }, [])
+
+  const add = async (e) => {
+    e.preventDefault()
+    if (!name.trim()) return
+    setErr('')
+    const { error } = await supabase.from('academies').insert({ name: name.trim(), owner_id: userId })
+    if (error) { setErr(error.message); return }
+    setName(''); load()
+  }
+
+  return (
+    <div>
+      <h2 style={h2}>내 학원</h2>
+      {academies.length === 0 && <p style={muted}>아직 학원이 없어요. 아래에서 하나 만들어 보세요.</p>}
+      {academies.map((a) => (
+        <div key={a.id} style={box}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>🏫 {a.name}</div>
+          <ClassList academyId={a.id} />
+        </div>
+      ))}
+      <form onSubmit={add} style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <input style={{ ...input, marginBottom: 0, flex: 1 }} placeholder="학원/과외 이름"
+          value={name} onChange={(e) => setName(e.target.value)} />
+        <button style={{ ...btn, marginTop: 0, padding: '0 18px' }} type="submit">+ 학원</button>
+      </form>
+      {err && <p style={errBox}>{err}</p>}
+    </div>
+  )
+}
+
+// 한 학원의 반 목록 + 반 만들기
+function ClassList({ academyId }) {
+  const [classes, setClasses] = useState([])
+  const [name, setName] = useState('')
+
+  const load = async () => {
+    const { data } = await supabase.from('classes').select('id, name').eq('academy_id', academyId).order('created_at')
+    setClasses(data || [])
+  }
+  useEffect(() => { load() }, [academyId])
+
+  const add = async (e) => {
+    e.preventDefault()
+    if (!name.trim()) return
+    const { error } = await supabase.from('classes').insert({ academy_id: academyId, name: name.trim() })
+    if (!error) { setName(''); load() }
+  }
+
+  return (
+    <div style={{ paddingLeft: 6 }}>
+      {classes.map((c) => <div key={c.id} style={chip}>📘 {c.name}</div>)}
+      {classes.length === 0 && <span style={{ ...muted, fontSize: 12 }}>반 없음 · </span>}
+      <form onSubmit={add} style={{ display: 'inline-flex', gap: 6, marginTop: 6 }}>
+        <input style={{ ...input, marginBottom: 0, padding: '6px 10px', width: 130, fontSize: 13 }}
+          placeholder="반 이름" value={name} onChange={(e) => setName(e.target.value)} />
+        <button style={{ ...btnGhost, padding: '6px 12px', fontSize: 13 }} type="submit">+ 반</button>
+      </form>
     </div>
   )
 }
@@ -172,5 +250,18 @@ const errBox = {
   borderRadius: 8, margin: '4px 0 8px', textAlign: 'center',
 }
 const foot = { fontSize: 11, color: '#bbb', textAlign: 'center', marginTop: 18 }
+const panel = {
+  width: 440, maxWidth: '92vw', background: '#fff', borderRadius: 18, padding: '24px 24px',
+  boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
+}
+const h2 = { fontSize: 16, margin: '0 0 10px', color: '#1a1a1a' }
+const muted = { fontSize: 13, color: '#999', margin: '0 0 10px' }
+const box = {
+  border: '1px solid #eee', borderRadius: 12, padding: '12px 14px', marginBottom: 10, background: '#fafbfc',
+}
+const chip = {
+  display: 'inline-block', background: '#eef4fa', color: '#2E75B6', borderRadius: 8,
+  padding: '4px 10px', fontSize: 13, marginRight: 6, marginBottom: 6,
+}
 
 export default App

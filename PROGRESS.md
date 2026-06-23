@@ -43,9 +43,21 @@
 ## ⑦ RLS 권한 규칙(정보 비대칭) — 진행 중
 잠긴 표에 "출입증 규칙"을 하나씩 연다. auth.uid() = 로그인한 사람 id.
 - [x] 7-1: "로그인한 사용자는 자기 profiles 줄 읽기"(`0005`). 화면에 이름·역할 표시로 검증 완료.
-- [ ] **7-2 ← 다음**: 출제자가 자기 학원(academies)·반(classes) 만들고 보기 + 확인용 미니 UI.
+- [~] **7-2: 코드 작성 끝, 아직 SQL 실행·테스트 안 함 ← 여기서 멈춤.**
+  - 권한 SQL: `supabase/migrations/0006_rls_academies_classes.sql` (학원/반 주인 관리 정책)
+  - UI: `web/src/App.jsx`에 로그인 후 "내 학원" 영역(학원 만들기 + 반 만들기) 추가됨
+  - **데스크톱에서 할 일 ↓ 참고**
 - [ ] 7-3: 학생은 자기 미션, 학부모는 통과 결과만(정보 비대칭 핵심).
 - 이후: 교재 업로드(Storage) → AI 출제(수학).
+
+## 🖥️ 데스크톱에서 이어받기 (지금 멈춘 지점)
+1. `git pull` 로 최신 받기 (이 커밋까지).
+2. `web/` 에 `node_modules` 없으면 `npm install`, `.env.local` 없으면 ④-4 두 값 다시 입력
+   (VITE_SUPABASE_URL = Supabase Project URL, VITE_SUPABASE_ANON_KEY = anon/Publishable 키).
+3. `npm run dev` → 브라우저 접속 → 로그인.
+4. **7-2 마무리**: Supabase SQL Editor에 `0006_rls_academies_classes.sql` 내용 붙여넣고 [Run].
+5. 화면 새로고침 → "내 학원"에서 학원 이름 입력 → [+ 학원], 반 이름 → [+ 반] 으로 뜨면 7-2 성공.
+6. 성공하면 7-3(학생·학부모 정보 비대칭 정책)로 진행.
 
 ## 노트북에서 처음 시작하기
 1. **Git, Node.js, VS Code** 설치 (없으면)
