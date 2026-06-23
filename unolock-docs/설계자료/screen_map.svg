@@ -1,0 +1,242 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1680" viewBox="0 0 1280 1680" font-family="'Helvetica Neue', Arial, sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#888"/>
+    </marker>
+    <marker id="arG" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#70A02E"/>
+    </marker>
+    <marker id="arB" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#2E75B6"/>
+    </marker>
+    <marker id="arO" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#B68A2E"/>
+    </marker>
+  </defs>
+  <rect width="1280" height="1680" fill="#ffffff"/>
+
+  <text x="640" y="46" text-anchor="middle" font-size="28" font-weight="700" fill="#1a1a1a">UnoLock 화면 설계 지도</text>
+  <text x="640" y="72" text-anchor="middle" font-size="14" fill="#888">사용자별 필요 화면과 흐름 · 초안 v1</text>
+  <line x1="60" y1="86" x2="1220" y2="86" stroke="#2E75B6" stroke-width="3"/>
+
+  <!-- ===== 공통 / 진입 ===== -->
+  <text x="60" y="124" font-size="18" font-weight="700" fill="#555">◆ 공통 — 진입 &amp; 가입</text>
+
+  <g font-size="13">
+    <rect x="60" y="138" width="170" height="58" rx="10" fill="#F0F0F0" stroke="#999" stroke-width="1.5"/>
+    <text x="145" y="164" text-anchor="middle" font-weight="700" fill="#333">스플래시 / 시작</text>
+    <text x="145" y="183" text-anchor="middle" fill="#666" font-size="11">로고 · 로그인 진입</text>
+
+    <rect x="270" y="138" width="170" height="58" rx="10" fill="#F0F0F0" stroke="#999" stroke-width="1.5"/>
+    <text x="355" y="158" text-anchor="middle" font-weight="700" fill="#333">유형 선택</text>
+    <text x="355" y="176" text-anchor="middle" fill="#666" font-size="11">학생 / 학부모 /</text>
+    <text x="355" y="190" text-anchor="middle" fill="#666" font-size="11">출제자</text>
+
+    <rect x="480" y="138" width="180" height="58" rx="10" fill="#F0F0F0" stroke="#999" stroke-width="1.5"/>
+    <text x="570" y="158" text-anchor="middle" font-weight="700" fill="#333">가입 / 로그인</text>
+    <text x="570" y="176" text-anchor="middle" fill="#666" font-size="11">번호 인증 ·</text>
+    <text x="570" y="190" text-anchor="middle" fill="#666" font-size="11">코드 확인(자녀 증명)</text>
+
+    <rect x="700" y="138" width="180" height="58" rx="10" fill="#F0F0F0" stroke="#999" stroke-width="1.5"/>
+    <text x="790" y="158" text-anchor="middle" font-weight="700" fill="#333">학원 검색·연결</text>
+    <text x="790" y="176" text-anchor="middle" fill="#666" font-size="11">학원 찾기 → 등록 신청</text>
+    <text x="790" y="190" text-anchor="middle" fill="#666" font-size="11">(직접학부모는 건너뜀)</text>
+  </g>
+  <line x1="230" y1="167" x2="268" y2="167" stroke="#888" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="440" y1="167" x2="478" y2="167" stroke="#888" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="660" y1="167" x2="698" y2="167" stroke="#888" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <line x1="60" y1="220" x2="1220" y2="220" stroke="#e3e3e3" stroke-width="1.5"/>
+
+  <!-- ===== 학생 ===== -->
+  <rect x="60" y="240" width="1160" height="6" rx="3" fill="#70A02E"/>
+  <text x="60" y="278" font-size="19" font-weight="700" fill="#3d5618">🎒 학생 화면</text>
+  <text x="230" y="278" font-size="13" fill="#7a8c5a">— 매일 미션을 풀고 보상을 얻는 핵심 사용자</text>
+
+  <g font-size="13">
+    <!-- 학생 홈 -->
+    <rect x="60" y="296" width="180" height="74" rx="12" fill="#E8F0D5" stroke="#70A02E" stroke-width="2"/>
+    <text x="150" y="322" text-anchor="middle" font-weight="700" fill="#3d5618">학생 홈</text>
+    <text x="150" y="342" text-anchor="middle" fill="#5a7035" font-size="11">오늘의 미션 · 스트릭</text>
+    <text x="150" y="358" text-anchor="middle" fill="#5a7035" font-size="11">남은 보상시간</text>
+
+    <!-- 오늘의 미션 -->
+    <rect x="300" y="296" width="180" height="74" rx="12" fill="#E8F0D5" stroke="#70A02E" stroke-width="2"/>
+    <text x="390" y="322" text-anchor="middle" font-weight="700" fill="#3d5618">오늘의 미션 목록</text>
+    <text x="390" y="342" text-anchor="middle" fill="#5a7035" font-size="11">과목별 미션 카드</text>
+    <text x="390" y="358" text-anchor="middle" fill="#5a7035" font-size="11">(수학·영단어 등)</text>
+
+    <!-- 숙제 인증 -->
+    <rect x="540" y="296" width="180" height="74" rx="12" fill="#E8F0D5" stroke="#70A02E" stroke-width="2"/>
+    <text x="630" y="322" text-anchor="middle" font-weight="700" fill="#3d5618">숙제 인증사진</text>
+    <text x="630" y="342" text-anchor="middle" fill="#5a7035" font-size="11">사진 촬영·업로드</text>
+    <text x="630" y="358" text-anchor="middle" fill="#5a7035" font-size="11">(학부모가 볼 수 있음)</text>
+
+    <!-- 문제 풀이 -->
+    <rect x="780" y="296" width="180" height="74" rx="12" fill="#DCEBC4" stroke="#70A02E" stroke-width="2.5"/>
+    <text x="870" y="322" text-anchor="middle" font-weight="700" fill="#3d5618">문제 풀이 화면 ★</text>
+    <text x="870" y="342" text-anchor="middle" fill="#5a7035" font-size="11">객관식·주관식 풀기</text>
+    <text x="870" y="358" text-anchor="middle" fill="#5a7035" font-size="11">(앱 못 빠져나감)</text>
+
+    <!-- 채점/재시험 -->
+    <rect x="780" y="392" width="180" height="74" rx="12" fill="#DCEBC4" stroke="#70A02E" stroke-width="2.5"/>
+    <text x="870" y="414" text-anchor="middle" font-weight="700" fill="#3d5618">채점 · 해설 · 재시험</text>
+    <text x="870" y="434" text-anchor="middle" fill="#5a7035" font-size="11">8할 미달 시 해설 →</text>
+    <text x="870" y="450" text-anchor="middle" fill="#5a7035" font-size="11">다른 문항 재출제 루프</text>
+
+    <!-- 통과 -->
+    <rect x="1020" y="392" width="180" height="74" rx="12" fill="#C8E6C9" stroke="#2EB652" stroke-width="2.5"/>
+    <text x="1110" y="414" text-anchor="middle" font-weight="700" fill="#1a6b32">통과! 🎉</text>
+    <text x="1110" y="434" text-anchor="middle" fill="#2a5a3a" font-size="11">축하 화면 →</text>
+    <text x="1110" y="450" text-anchor="middle" fill="#2a5a3a" font-size="11">보상시간 활성화</text>
+
+    <!-- 보상/잠금해제 -->
+    <rect x="1020" y="296" width="180" height="74" rx="12" fill="#C8E6C9" stroke="#2EB652" stroke-width="2.5"/>
+    <text x="1110" y="318" text-anchor="middle" font-weight="700" fill="#1a6b32">보상 · 잠금 해제</text>
+    <text x="1110" y="338" text-anchor="middle" fill="#2a5a3a" font-size="11">타이머 작동 →</text>
+    <text x="1110" y="354" text-anchor="middle" fill="#2a5a3a" font-size="11">허용 앱 사용 가능</text>
+  </g>
+
+  <!-- 학생 흐름 화살표 -->
+  <line x1="240" y1="333" x2="298" y2="333" stroke="#70A02E" stroke-width="1.8" marker-end="url(#arG)"/>
+  <line x1="480" y1="333" x2="538" y2="333" stroke="#70A02E" stroke-width="1.8" marker-end="url(#arG)"/>
+  <line x1="720" y1="333" x2="778" y2="333" stroke="#70A02E" stroke-width="1.8" marker-end="url(#arG)"/>
+  <line x1="870" y1="370" x2="870" y2="390" stroke="#70A02E" stroke-width="1.8" marker-end="url(#arG)"/>
+  <line x1="960" y1="429" x2="1018" y2="429" stroke="#70A02E" stroke-width="1.8" marker-end="url(#arG)"/>
+  <path d="M1110 392 L1110 372" stroke="#2EB652" stroke-width="1.8" marker-end="url(#arG)"/>
+  <!-- 재시험 루프 화살표 -->
+  <path d="M820 392 Q800 381 820 372" fill="none" stroke="#B0892E" stroke-width="1.6" stroke-dasharray="4,3" marker-end="url(#arO)"/>
+  <text x="700" y="386" font-size="10" fill="#B0892E" font-style="italic">통과까지 반복</text>
+
+  <line x1="60" y1="492" x2="1220" y2="492" stroke="#e3e3e3" stroke-width="1.5"/>
+
+  <!-- ===== 학부모 ===== -->
+  <rect x="60" y="512" width="1160" height="6" rx="3" fill="#B68A2E"/>
+  <text x="60" y="550" font-size="19" font-weight="700" fill="#6b5118">👨‍👩‍👧 학부모 화면</text>
+  <text x="260" y="550" font-size="13" fill="#9a8050">— 성공 결과만 보고, 시간·앱 범위를 관리</text>
+
+  <g font-size="13">
+    <rect x="60" y="568" width="180" height="74" rx="12" fill="#F0E8D5" stroke="#B68A2E" stroke-width="2"/>
+    <text x="150" y="594" text-anchor="middle" font-weight="700" fill="#6b5118">학부모 홈</text>
+    <text x="150" y="614" text-anchor="middle" fill="#7a6035" font-size="11">자녀 현황 요약</text>
+    <text x="150" y="630" text-anchor="middle" fill="#7a6035" font-size="11">(다자녀 전환)</text>
+
+    <rect x="300" y="568" width="180" height="74" rx="12" fill="#F0E8D5" stroke="#B68A2E" stroke-width="2"/>
+    <text x="390" y="590" text-anchor="middle" font-weight="700" fill="#6b5118">통과 알림</text>
+    <text x="390" y="610" text-anchor="middle" fill="#7a6035" font-size="11">"지안이 통과했어요!"</text>
+    <text x="390" y="626" text-anchor="middle" fill="#7a6035" font-size="11">결과 보기 (과정 숨김)</text>
+
+    <rect x="540" y="568" width="180" height="74" rx="12" fill="#F0E8D5" stroke="#B68A2E" stroke-width="2"/>
+    <text x="630" y="588" text-anchor="middle" font-weight="700" fill="#6b5118">보상 규칙 설정 ★</text>
+    <text x="630" y="606" text-anchor="middle" fill="#7a6035" font-size="11">초기 1회 설정 → 계속 유지</text>
+    <text x="630" y="622" text-anchor="middle" fill="#7a6035" font-size="11">(수정 전까지 매일 자동 적용)</text>
+    <text x="630" y="637" text-anchor="middle" fill="#9a8050" font-size="10" font-style="italic">⚙ 환경설정 성격 · 매번 X</text>
+
+    <rect x="780" y="568" width="180" height="74" rx="12" fill="#F0E8D5" stroke="#B68A2E" stroke-width="2"/>
+    <text x="870" y="590" text-anchor="middle" font-weight="700" fill="#6b5118">주간 리포트</text>
+    <text x="870" y="610" text-anchor="middle" fill="#7a6035" font-size="11">학원이 작성·검토한</text>
+    <text x="870" y="626" text-anchor="middle" fill="#7a6035" font-size="11">피드백 보고서</text>
+
+    <rect x="1020" y="568" width="180" height="74" rx="12" fill="#F0E8D5" stroke="#B68A2E" stroke-width="2"/>
+    <text x="1110" y="590" text-anchor="middle" font-weight="700" fill="#6b5118">숙제 인증 확인</text>
+    <text x="1110" y="610" text-anchor="middle" fill="#7a6035" font-size="11">자녀가 올린</text>
+    <text x="1110" y="626" text-anchor="middle" fill="#7a6035" font-size="11">인증사진 열람</text>
+  </g>
+  <line x1="240" y1="605" x2="298" y2="605" stroke="#B68A2E" stroke-width="1.6" marker-end="url(#arO)"/>
+  <line x1="480" y1="605" x2="538" y2="605" stroke="#B68A2E" stroke-width="1.6" marker-end="url(#arO)"/>
+  <line x1="720" y1="605" x2="778" y2="605" stroke="#B68A2E" stroke-width="1.6" marker-end="url(#arO)"/>
+  <line x1="960" y1="605" x2="1018" y2="605" stroke="#B68A2E" stroke-width="1.6" marker-end="url(#arO)"/>
+
+  <line x1="60" y1="676" x2="1220" y2="676" stroke="#e3e3e3" stroke-width="1.5"/>
+
+  <!-- ===== 출제자 ===== -->
+  <rect x="60" y="696" width="1160" height="6" rx="3" fill="#2E75B6"/>
+  <text x="60" y="734" font-size="19" font-weight="700" fill="#1a4566">🏫 출제자 화면 (학원 / 과외선생 / 직접학부모)</text>
+  <text x="60" y="758" font-size="13" fill="#5a7488">— 웹 대시보드 중심. 교재만 올리면 AI가 출제. 전체 데이터를 본다.</text>
+
+  <g font-size="13">
+    <rect x="60" y="776" width="180" height="78" rx="12" fill="#D5E8F0" stroke="#2E75B6" stroke-width="2"/>
+    <text x="150" y="800" text-anchor="middle" font-weight="700" fill="#1a4566">대시보드 홈</text>
+    <text x="150" y="820" text-anchor="middle" fill="#33536b" font-size="11">반·학생 전체 현황</text>
+    <text x="150" y="836" text-anchor="middle" fill="#33536b" font-size="11">완료율 한눈에</text>
+
+    <rect x="300" y="776" width="180" height="78" rx="12" fill="#D5E8F0" stroke="#2E75B6" stroke-width="2"/>
+    <text x="390" y="800" text-anchor="middle" font-weight="700" fill="#1a4566">반 / 학생 관리</text>
+    <text x="390" y="820" text-anchor="middle" fill="#33536b" font-size="11">반 개설 · 학생 등록</text>
+    <text x="390" y="836" text-anchor="middle" fill="#33536b" font-size="11">등록 신청 승인</text>
+
+    <rect x="540" y="776" width="180" height="78" rx="12" fill="#C4DDF0" stroke="#2E75B6" stroke-width="2.5"/>
+    <text x="630" y="796" text-anchor="middle" font-weight="700" fill="#1a4566">교재 업로드 ★</text>
+    <text x="630" y="814" text-anchor="middle" fill="#33536b" font-size="11">PDF·사진 올리기</text>
+    <text x="630" y="830" text-anchor="middle" fill="#33536b" font-size="11">→ AI 자동 출제</text>
+    <text x="630" y="846" text-anchor="middle" fill="#5a7488" font-size="10" font-style="italic">🔁 매일 반복 동작</text>
+
+    <rect x="780" y="776" width="180" height="78" rx="12" fill="#C4DDF0" stroke="#2E75B6" stroke-width="2.5"/>
+    <text x="870" y="796" text-anchor="middle" font-weight="700" fill="#1a4566">미션 설정 / 검토</text>
+    <text x="870" y="816" text-anchor="middle" fill="#33536b" font-size="11">난이도·지문 여부 설정</text>
+    <text x="870" y="832" text-anchor="middle" fill="#33536b" font-size="11">(반별로 조절)</text>
+
+    <rect x="1020" y="776" width="180" height="78" rx="12" fill="#D5E8F0" stroke="#2E75B6" stroke-width="2"/>
+    <text x="1110" y="796" text-anchor="middle" font-weight="700" fill="#1a4566">학생 상세 데이터</text>
+    <text x="1110" y="816" text-anchor="middle" fill="#33536b" font-size="11">틀린 횟수·재시험·</text>
+    <text x="1110" y="832" text-anchor="middle" fill="#33536b" font-size="11">취약점 (전체 열람)</text>
+
+    <rect x="540" y="876" width="180" height="78" rx="12" fill="#D5E8F0" stroke="#2E75B6" stroke-width="2"/>
+    <text x="630" y="900" text-anchor="middle" font-weight="700" fill="#1a4566">진도 관리</text>
+    <text x="630" y="920" text-anchor="middle" fill="#33536b" font-size="11">커리큘럼 대비</text>
+    <text x="630" y="936" text-anchor="middle" fill="#33536b" font-size="11">현재 진도 입력</text>
+
+    <rect x="780" y="876" width="180" height="78" rx="12" fill="#D5E8F0" stroke="#2E75B6" stroke-width="2"/>
+    <text x="870" y="900" text-anchor="middle" font-weight="700" fill="#1a4566">리포트 작성·발송</text>
+    <text x="870" y="920" text-anchor="middle" fill="#33536b" font-size="11">주간 피드백 →</text>
+    <text x="870" y="936" text-anchor="middle" fill="#33536b" font-size="11">학부모에게 전송</text>
+
+    <rect x="1020" y="876" width="180" height="78" rx="12" fill="#D5E8F0" stroke="#2E75B6" stroke-width="2"/>
+    <text x="1110" y="900" text-anchor="middle" font-weight="700" fill="#1a4566">구독 / 결제 관리</text>
+    <text x="1110" y="920" text-anchor="middle" fill="#33536b" font-size="11">인당 월정액 ·</text>
+    <text x="1110" y="936" text-anchor="middle" fill="#33536b" font-size="11">학생별 구독 on/off</text>
+  </g>
+  <line x1="240" y1="815" x2="298" y2="815" stroke="#2E75B6" stroke-width="1.6" marker-end="url(#arB)"/>
+  <line x1="480" y1="815" x2="538" y2="815" stroke="#2E75B6" stroke-width="1.6" marker-end="url(#arB)"/>
+  <line x1="720" y1="815" x2="778" y2="815" stroke="#2E75B6" stroke-width="1.6" marker-end="url(#arB)"/>
+  <line x1="960" y1="815" x2="1018" y2="815" stroke="#2E75B6" stroke-width="1.6" marker-end="url(#arB)"/>
+
+  <line x1="60" y1="982" x2="1220" y2="982" stroke="#e3e3e3" stroke-width="1.5"/>
+
+  <!-- ===== 연결 포인트 ===== -->
+  <text x="60" y="1018" font-size="18" font-weight="700" fill="#555">◆ 세 화면이 데이터로 연결되는 지점</text>
+
+  <g font-size="12.5">
+    <rect x="60" y="1034" width="370" height="92" rx="12" fill="#fafafa" stroke="#ccc" stroke-width="1.5"/>
+    <text x="80" y="1060" font-size="13" font-weight="700" fill="#2E75B6">① 출제자 → 학생</text>
+    <text x="80" y="1082" fill="#555">출제자가 올린 교재 → AI 출제 →</text>
+    <text x="80" y="1100" fill="#555">학생 "오늘의 미션"에 자동 배포</text>
+    <text x="80" y="1118" fill="#999" font-size="11">교사 노동 0의 핵심 연결</text>
+
+    <rect x="455" y="1034" width="370" height="92" rx="12" fill="#fafafa" stroke="#ccc" stroke-width="1.5"/>
+    <text x="475" y="1060" font-size="13" font-weight="700" fill="#70A02E">② 학생 → 학부모</text>
+    <text x="475" y="1082" fill="#555">통과 결과·인증사진만 학부모에게</text>
+    <text x="475" y="1100" fill="#555">전달 (틀린 횟수·재시험은 숨김)</text>
+    <text x="475" y="1118" fill="#999" font-size="11">정보 비대칭의 핵심 연결</text>
+
+    <rect x="850" y="1034" width="370" height="92" rx="12" fill="#fafafa" stroke="#ccc" stroke-width="1.5"/>
+    <text x="870" y="1060" font-size="13" font-weight="700" fill="#B68A2E">③ 학부모 → 학생(폰)</text>
+    <text x="870" y="1082" fill="#555">보상시간·허용앱 설정이</text>
+    <text x="870" y="1100" fill="#555">학생 폰 잠금 동작을 제어</text>
+    <text x="870" y="1118" fill="#999" font-size="11">시간관리 권한의 핵심 연결</text>
+  </g>
+
+  <!-- MVP 표시 -->
+  <line x1="60" y1="1158" x2="1220" y2="1158" stroke="#e3e3e3" stroke-width="1.5"/>
+  <text x="60" y="1194" font-size="18" font-weight="700" fill="#D9534F">◆ 1차 MVP 범위 (폰 잠금 빼고, 핵심 학습 루프만)</text>
+
+  <rect x="60" y="1212" width="1160" height="110" rx="12" fill="#FFF4F3" stroke="#D9534F" stroke-width="1.8"/>
+  <text x="85" y="1242" font-size="14" font-weight="700" fill="#A8332E">포함 ✓</text>
+  <text x="85" y="1266" font-size="12.5" fill="#7a3a37">교재 업로드 → AI 출제 → 학생 문제 풀이 → 채점·재시험 → 통과 → 학부모 통과 알림</text>
+  <text x="85" y="1292" font-size="14" font-weight="700" fill="#999">2차 이후 →</text>
+  <text x="85" y="1314" font-size="12.5" fill="#888">폰 잠금/허용앱 제어 · 보상 타이머 · 결제 시스템 · 주간 리포트 자동화</text>
+
+  <line x1="60" y1="1352" x2="1220" y2="1352" stroke="#2E75B6" stroke-width="2"/>
+  <text x="640" y="1384" text-anchor="middle" font-size="13" font-weight="700" fill="#2E75B6">★ = 각 사용자에게 가장 중요한 화면 · 이 지도는 초안이며 함께 수정해 나갑니다</text>
+  <text x="640" y="1408" text-anchor="middle" font-size="12" fill="#888">UnoLock (가칭) · 화면 설계 지도 v1</text>
+</svg>

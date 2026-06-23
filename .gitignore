@@ -1,0 +1,19 @@
+# === 비밀 / 환경설정 (절대 업로드 금지) ===
+.env
+.env.*
+*.local
+
+# === 의존성 / 빌드 결과물 (용량 큼, 다시 만들면 됨) ===
+node_modules/
+dist/
+dist-ssr/
+
+# === Claude Code 개인 로컬 설정 (공유 안 함) ===
+.claude/settings.local.json
+
+# === OS / 에디터 ===
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/

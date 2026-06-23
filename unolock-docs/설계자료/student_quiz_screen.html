@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UnoLock — 학생 문제 풀이</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Gaegu:wght@700&family=Pretendard:wght@400;500;600;700;800&display=swap');
+
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root{
+    --ink:#1b2a4a;        /* deep navy ink */
+    --paper:#fbfaf6;      /* warm notebook paper */
+    --line:#e9e4d6;       /* faint rule line */
+    --lime:#c5f04a;       /* signal lime - the reward color */
+    --lime-deep:#9bcc1f;
+    --grape:#6c5ce7;      /* playful accent */
+    --coral:#ff6b6b;      /* wrong / warning */
+    --mute:#8a93a6;
+  }
+  body{
+    font-family:'Pretendard',sans-serif;
+    background:#dfe3ea;
+    display:flex; align-items:center; justify-content:center;
+    min-height:100vh; padding:20px;
+  }
+  /* phone frame */
+  .phone{
+    width:390px; height:800px;
+    background:var(--paper);
+    border-radius:42px;
+    box-shadow:0 30px 70px rgba(27,42,74,.28), inset 0 0 0 11px #11151d, inset 0 0 0 13px #2a2f3a;
+    position:relative; overflow:hidden;
+    display:flex; flex-direction:column;
+  }
+  .notch{ position:absolute; top:14px; left:50%; transform:translateX(-50%); width:120px; height:30px; background:#11151d; border-radius:0 0 18px 18px; z-index:50; }
+
+  /* status bar */
+  .statusbar{ height:54px; flex:0 0 54px; display:flex; align-items:flex-end; justify-content:space-between; padding:0 26px 6px; font-size:13px; font-weight:700; color:var(--ink); }
+
+  /* top app bar */
+  .appbar{ flex:0 0 auto; padding:8px 22px 14px; }
+  .appbar .row{ display:flex; align-items:center; justify-content:space-between; }
+  .back{ width:38px; height:38px; border-radius:12px; border:2px solid var(--ink); background:transparent; font-size:18px; color:var(--ink); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .subject-tag{ font-size:13px; font-weight:700; color:#fff; background:var(--ink); padding:7px 16px; border-radius:20px; letter-spacing:.02em; }
+  .reward-chip{ display:flex; align-items:center; gap:5px; font-size:13px; font-weight:800; color:var(--ink); background:var(--lime); padding:7px 13px; border-radius:20px; }
+
+  /* progress */
+  .progress-wrap{ padding:14px 22px 6px; }
+  .progress-meta{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
+  .progress-meta .q{ font-size:14px; font-weight:700; color:var(--ink); }
+  .progress-meta .pace{ font-size:12px; font-weight:600; color:var(--mute); }
+  .bar{ height:10px; background:#ececec; border-radius:10px; overflow:hidden; }
+  .bar > i{ display:block; height:100%; width:20%; background:linear-gradient(90deg,var(--lime-deep),var(--lime)); border-radius:10px; transition:width .5s cubic-bezier(.2,.8,.2,1); }
+
+  /* scroll body */
+  .screen{ flex:1 1 auto; overflow-y:auto; padding:10px 22px 0; }
+  .screen::-webkit-scrollbar{ display:none; }
+
+  /* question card */
+  .qcard{ background:#fff; border:1px solid var(--line); border-radius:24px; padding:24px 22px; box-shadow:0 8px 24px rgba(27,42,74,.06); position:relative; }
+  .qcard::before{ content:""; position:absolute; left:22px; right:22px; top:64px; height:1px; background:repeating-linear-gradient(90deg,var(--line) 0 6px, transparent 6px 12px); }
+  .qnum{ font-family:'Gaegu',cursive; font-size:30px; color:var(--grape); line-height:1; }
+  .qtype{ font-size:12px; font-weight:700; color:var(--mute); margin-top:2px; }
+  .qtext{ font-size:20px; font-weight:700; color:var(--ink); line-height:1.5; margin-top:26px; word-break:keep-all; }
+  .qhint{ font-size:13px; color:var(--mute); margin-top:8px; }
+
+  /* options */
+  .options{ margin-top:22px; display:flex; flex-direction:column; gap:12px; }
+  .opt{ display:flex; align-items:center; gap:14px; background:#fff; border:2px solid var(--line); border-radius:18px; padding:17px 18px; cursor:pointer; transition:transform .12s, border-color .15s, background .15s; }
+  .opt:active{ transform:scale(.98); }
+  .opt .mark{ flex:0 0 30px; height:30px; border-radius:9px; background:#f1efe7; display:flex; align-items:center; justify-content:center; font-weight:800; color:var(--ink); font-size:15px; transition:all .15s; }
+  .opt .txt{ font-size:17px; font-weight:600; color:var(--ink); }
+  .opt.sel{ border-color:var(--grape); background:#f3f1fe; }
+  .opt.sel .mark{ background:var(--grape); color:#fff; }
+  .opt.correct{ border-color:var(--lime-deep); background:#f3fbe0; }
+  .opt.correct .mark{ background:var(--lime-deep); color:#fff; }
+  .opt.wrong{ border-color:var(--coral); background:#fff0f0; }
+  .opt.wrong .mark{ background:var(--coral); color:#fff; }
+  .opt.disabled{ pointer-events:none; opacity:.55; }
+  .opt.keep{ opacity:1; }
+
+  /* feedback strip */
+  .feedback{ margin-top:18px; border-radius:18px; padding:16px 18px; display:none; }
+  .feedback.show{ display:block; animation:rise .35s ease; }
+  .feedback.ok{ background:#f3fbe0; border:1.5px solid var(--lime-deep); }
+  .feedback.no{ background:#fff0f0; border:1.5px solid var(--coral); }
+  .feedback .ft{ font-size:14px; font-weight:800; margin-bottom:5px; }
+  .feedback.ok .ft{ color:#5f8a00; }
+  .feedback.no .ft{ color:#d64545; }
+  .feedback .fb{ font-size:14px; color:#5b6478; line-height:1.55; }
+  @keyframes rise{ from{ opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
+
+  /* bottom action */
+  .foot{ flex:0 0 auto; padding:14px 22px 26px; background:linear-gradient(180deg,rgba(251,250,246,0) 0%, var(--paper) 22%); }
+  .cta{ width:100%; border:none; border-radius:20px; padding:18px; font-family:'Pretendard'; font-size:17px; font-weight:800; cursor:pointer; transition:transform .12s, opacity .2s; color:var(--ink); background:var(--lime); box-shadow:0 8px 20px rgba(155,204,31,.4); }
+  .cta:active{ transform:translateY(2px); }
+  .cta.ghost{ background:#fff; border:2px solid var(--ink); box-shadow:none; }
+  .cta:disabled{ background:#e6e4dc; color:#b3b0a6; box-shadow:none; cursor:default; }
+  .lockmsg{ text-align:center; font-size:12px; color:var(--mute); margin-top:12px; display:flex; align-items:center; justify-content:center; gap:5px; }
+
+  /* ===== PASS overlay ===== */
+  .overlay{ position:absolute; inset:0; background:linear-gradient(165deg,#1b2a4a,#33408c); z-index:60; display:none; flex-direction:column; align-items:center; justify-content:center; padding:40px; text-align:center; }
+  .overlay.show{ display:flex; animation:fade .4s ease; }
+  @keyframes fade{ from{opacity:0;} to{opacity:1;} }
+  .trophy{ font-size:74px; margin-bottom:6px; animation:pop .6s cubic-bezier(.2,1.4,.4,1); }
+  @keyframes pop{ 0%{transform:scale(0) rotate(-20deg);} 70%{transform:scale(1.15) rotate(6deg);} 100%{transform:scale(1) rotate(0);} }
+  .ov-score{ font-family:'Gaegu',cursive; font-size:64px; color:var(--lime); line-height:1; }
+  .ov-title{ font-size:26px; font-weight:800; color:#fff; margin-top:6px; }
+  .ov-sub{ font-size:15px; color:#aeb8e0; margin-top:12px; line-height:1.6; }
+  .reward-card{ margin-top:28px; background:rgba(255,255,255,.1); border:1px solid rgba(197,240,74,.4); border-radius:22px; padding:22px 26px; width:100%; }
+  .reward-card .label{ font-size:13px; color:#aeb8e0; font-weight:600; }
+  .reward-card .time{ font-family:'Gaegu',cursive; font-size:52px; color:var(--lime); line-height:1.1; margin:4px 0; }
+  .reward-card .note{ font-size:12px; color:#8e98c4; }
+  .ov-cta{ margin-top:30px; width:100%; border:none; border-radius:20px; padding:18px; font-size:17px; font-weight:800; background:var(--lime); color:var(--ink); cursor:pointer; }
+  .ov-foot{ font-size:12px; color:#8e98c4; margin-top:16px; }
+
+  .confetti{ position:absolute; width:10px; height:14px; top:-20px; z-index:61; pointer-events:none; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="notch"></div>
+  <div class="statusbar"><span>9:41</span><span>UnoLock</span><span>📶 87%</span></div>
+
+  <!-- app bar -->
+  <div class="appbar">
+    <div class="row">
+      <button class="back" onclick="resetDemo()">‹</button>
+      <span class="subject-tag" id="subjectTag">수학 · 일차방정식</span>
+      <span class="reward-chip">🎁 +60분</span>
+    </div>
+  </div>
+
+  <!-- progress -->
+  <div class="progress-wrap">
+    <div class="progress-meta">
+      <span class="q" id="qcount">문제 1 / 5</span>
+      <span class="pace" id="paceTxt">통과 기준 80% · 4개 이상 맞히기</span>
+    </div>
+    <div class="bar"><i id="barFill"></i></div>
+  </div>
+
+  <!-- question area -->
+  <div class="screen" id="screen">
+    <div class="qcard">
+      <div class="qnum" id="qnum">Q1.</div>
+      <div class="qtype" id="qtype">객관식 · 개념 확인</div>
+      <div class="qtext" id="qtext">2x + 3 = 11 일 때, x의 값은?</div>
+      <div class="qhint" id="qhint">양변에서 3을 먼저 빼보세요.</div>
+
+      <div class="options" id="options"></div>
+
+      <div class="feedback" id="feedback">
+        <div class="ft" id="ftitle"></div>
+        <div class="fb" id="fbody"></div>
+      </div>
+    </div>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- footer action -->
+  <div class="foot">
+    <button class="cta" id="cta" disabled onclick="onCta()">답을 골라주세요</button>
+    <div class="lockmsg" id="lockmsg">🔒 미션을 끝내야 폰이 열려요</div>
+  </div>
+
+  <!-- PASS overlay -->
+  <div class="overlay" id="overlay">
+    <div class="trophy">🏆</div>
+    <div class="ov-score" id="ovScore">5 / 5</div>
+    <div class="ov-title">미션 통과!</div>
+    <div class="ov-sub" id="ovSub">오늘 수학 미션을 완료했어요.<br>약속한 보상 시간이 켜졌어요.</div>
+    <div class="reward-card">
+      <div class="label">지금부터 사용할 수 있어요</div>
+      <div class="time">60:00</div>
+      <div class="note">엄마가 설정한 보상 시간 · 허용 앱만 열려요</div>
+    </div>
+    <button class="ov-cta" onclick="resetDemo()">자유시간 시작하기 →</button>
+    <div class="ov-foot">📨 부모님께 "통과했어요" 알림이 전송됐어요</div>
+  </div>
+</div>
+
+<script>
+  // ---- demo question bank (math). "결국 통과시키는" 루프를 단순화해 시연 ----
+  const questions = [
+    { q:"2x + 3 = 11 일 때, x의 값은?", type:"객관식 · 개념 확인", hint:"양변에서 3을 먼저 빼보세요.",
+      opts:["2","4","5","7"], answer:1,
+      okFb:"맞아요! 3을 빼면 2x=8, 그래서 x=4 예요.",
+      noFb:"아쉬워요. 양변에서 3을 빼면 2x=8 이 돼요. 그럼 x는?" },
+    { q:"x - 5 = -2 일 때, x의 값은?", type:"객관식 · 개념 확인", hint:"양변에 5를 더해보세요.",
+      opts:["-7","-3","3","7"], answer:2,
+      okFb:"좋아요! 5를 더하면 x=3 이에요.",
+      noFb:"양변에 5를 더하면 x=3 이 돼요." },
+    { q:"3x = 21 일 때, x의 값은?", type:"객관식 · 개념 확인", hint:"양변을 3으로 나눠요.",
+      opts:["6","7","8","9"], answer:1,
+      okFb:"정확해요! 21을 3으로 나누면 7.",
+      noFb:"양변을 3으로 나누면 x=7 이에요." },
+    { q:"x/2 = 6 일 때, x의 값은?", type:"객관식 · 개념 확인", hint:"양변에 2를 곱해요.",
+      opts:["3","8","12","16"], answer:2,
+      okFb:"맞았어요! 양변에 2를 곱하면 x=12.",
+      noFb:"양변에 2를 곱하면 x=12 가 돼요." },
+    { q:"2(x+1) = 10 일 때, x의 값은?", type:"객관식 · 응용", hint:"괄호를 먼저 풀거나, 양변을 2로 나눠요.",
+      opts:["3","4","5","6"], answer:1,
+      okFb:"훌륭해요! 양변을 2로 나누면 x+1=5, 그래서 x=4.",
+      noFb:"양변을 2로 나누면 x+1=5 → x=4 예요." }
+  ];
+
+  let idx=0, selected=null, answered=false, correctCount=0;
+  const LETTERS=["①","②","③","④"];
+
+  function render(){
+    const item=questions[idx];
+    document.getElementById('qnum').textContent="Q"+(idx+1)+".";
+    document.getElementById('qtype').textContent=item.type;
+    document.getElementById('qtext').textContent=item.q;
+    document.getElementById('qhint').textContent=item.hint;
+    document.getElementById('qcount').textContent="문제 "+(idx+1)+" / "+questions.length;
+    document.getElementById('barFill').style.width=((idx)/questions.length*100)+"%";
+
+    const box=document.getElementById('options'); box.innerHTML="";
+    item.opts.forEach((o,i)=>{
+      const el=document.createElement('div');
+      el.className="opt"; el.dataset.i=i;
+      el.innerHTML='<div class="mark">'+LETTERS[i]+'</div><div class="txt">'+o+'</div>';
+      el.onclick=()=>pick(i,el);
+      box.appendChild(el);
+    });
+    selected=null; answered=false;
+    const fb=document.getElementById('feedback'); fb.className="feedback";
+    const cta=document.getElementById('cta'); cta.disabled=true; cta.textContent="답을 골라주세요"; cta.className="cta";
+  }
+
+  function pick(i,el){
+    if(answered) return;
+    selected=i;
+    document.querySelectorAll('.opt').forEach(o=>o.classList.remove('sel'));
+    el.classList.add('sel');
+    const cta=document.getElementById('cta'); cta.disabled=false; cta.textContent="정답 확인";
+  }
+
+  function onCta(){
+    const cta=document.getElementById('cta');
+    if(!answered){
+      // grade
+      answered=true;
+      const item=questions[idx];
+      const opts=document.querySelectorAll('.opt');
+      opts.forEach(o=>o.classList.add('disabled'));
+      const fb=document.getElementById('feedback');
+      if(selected===item.answer){
+        correctCount++;
+        opts[selected].classList.remove('sel'); opts[selected].classList.add('correct','keep');
+        fb.className="feedback ok show";
+        document.getElementById('ftitle').textContent="정답이에요 ✓";
+        document.getElementById('fbody').textContent=item.okFb;
+      }else{
+        opts[selected].classList.remove('sel'); opts[selected].classList.add('wrong','keep');
+        opts[item.answer].classList.add('correct','keep');
+        fb.className="feedback no show";
+        document.getElementById('ftitle').textContent="다시 볼까요";
+        document.getElementById('fbody').textContent=item.noFb;
+      }
+      document.getElementById('barFill').style.width=((idx+1)/questions.length*100)+"%";
+      cta.textContent = (idx<questions.length-1) ? "다음 문제 →" : "결과 보기";
+      cta.className="cta ghost";
+    } else {
+      // next
+      if(idx<questions.length-1){ idx++; render(); document.getElementById('screen').scrollTop=0; }
+      else finish();
+    }
+  }
+
+  function finish(){
+    const pass = correctCount>=4; // 80%
+    const ov=document.getElementById('overlay');
+    document.getElementById('ovScore').textContent=correctCount+" / "+questions.length;
+    if(pass){
+      document.querySelector('.trophy').textContent="🏆";
+      document.querySelector('.ov-title').textContent="미션 통과!";
+      document.getElementById('ovSub').innerHTML="오늘 수학 미션을 완료했어요.<br>약속한 보상 시간이 켜졌어요.";
+      ov.style.background="linear-gradient(165deg,#1b2a4a,#33408c)";
+      ov.classList.add('show'); burst();
+    } else {
+      // 8할 미만 → 재도전 루프 (시연: 해설 보고 다시)
+      document.querySelector('.trophy').textContent="📘";
+      document.querySelector('.ov-title').textContent="조금만 더!";
+      document.getElementById('ovSub').innerHTML="통과 기준은 4개 이상이에요.<br>틀린 유형으로 <b>비슷한 새 문제</b>를 다시 풀어볼까요?";
+      document.querySelector('.reward-card').style.display="none";
+      document.querySelector('.ov-cta').textContent="비슷한 문제로 다시 도전 →";
+      document.querySelector('.ov-foot').style.display="none";
+      ov.style.background="linear-gradient(165deg,#3a2c52,#6c5ce7)";
+      ov.classList.add('show');
+    }
+  }
+
+  function resetDemo(){
+    document.getElementById('overlay').classList.remove('show');
+    document.querySelector('.reward-card').style.display="block";
+    document.querySelector('.ov-cta').textContent="자유시간 시작하기 →";
+    document.querySelector('.ov-foot').style.display="block";
+    idx=0; correctCount=0; render();
+  }
+
+  function burst(){
+    const colors=['#c5f04a','#6c5ce7','#ff6b6b','#ffd93d','#fff'];
+    for(let i=0;i<40;i++){
+      const c=document.createElement('div'); c.className="confetti";
+      c.style.left=Math.random()*100+"%";
+      c.style.background=colors[i%colors.length];
+      c.style.transform="rotate("+Math.random()*360+"deg)";
+      document.querySelector('.phone').appendChild(c);
+      const dur=1400+Math.random()*1200;
+      c.animate([{transform:"translateY(0) rotate(0)",opacity:1},{transform:"translateY(840px) rotate("+(360+Math.random()*360)+"deg)",opacity:.9}],{duration:dur,easing:"cubic-bezier(.2,.6,.4,1)"});
+      setTimeout(()=>c.remove(),dur);
+    }
+  }
+
+  render();
+</script>
+</body>
+</html>
