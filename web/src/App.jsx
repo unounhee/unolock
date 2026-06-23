@@ -86,6 +86,7 @@ function Workspace({ userId }) {
         <div key={a.id} style={box}>
           <div style={{ fontWeight: 700, marginBottom: 8 }}>🏫 {a.name}</div>
           <ClassList academyId={a.id} />
+          <MaterialList academyId={a.id} userId={userId} />
         </div>
       ))}
       <form onSubmit={add} style={{ display: 'flex', gap: 8, marginTop: 10 }}>
@@ -125,6 +126,86 @@ function ClassList({ academyId }) {
           placeholder="반 이름" value={name} onChange={(e) => setName(e.target.value)} />
         <button style={{ ...btnGhost, padding: '6px 12px', fontSize: 13 }} type="submit">+ 반</button>
       </form>
+    </div>
+  )
+}
+
+// 한 학원의 교재 목록 + 교재 업로드 (사진/PDF)
+function MaterialList({ academyId, userId }) {
+  const [materials, setMaterials] = useState([])
+  const [title, setTitle] = useState('')
+  const [file, setFile] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  const load = async () => {
+    const { data } = await supabase.from('materials')
+      .select('id, title, file_type, storage_path, created_at')
+      .eq('academy_id', academyId).order('created_at')
+    setMaterials(data || [])
+  }
+  useEffect(() => { load() }, [academyId])
+
+  const upload = async (e) => {
+    e.preventDefault()
+    setErr('')
+    if (!file) { setErr('파일을 먼저 선택해 주세요.'); return }
+    const fileType = file.type === 'application/pdf' ? 'pdf'
+      : file.type.startsWith('image/') ? 'image' : null
+    if (!fileType) { setErr('이미지(JPG/PNG) 또는 PDF만 올릴 수 있어요.'); return }
+    setBusy(true)
+    try {
+      // 파일 경로: "<학원id>/<시간>_<파일명>" — 권한 규칙이 첫 폴더(학원id)로 확인합니다.
+      const safe = file.name.replace(/[^\w.\-]/g, '_')
+      const path = `${academyId}/${Date.now()}_${safe}`
+      const up = await supabase.storage.from('materials').upload(path, file)
+      if (up.error) throw up.error
+      const ins = await supabase.from('materials').insert({
+        academy_id: academyId,
+        uploaded_by: userId,
+        title: title.trim() || file.name,
+        storage_path: path,
+        file_type: fileType,
+      })
+      if (ins.error) throw ins.error
+      setTitle(''); setFile(null)
+      if (e.target.reset) e.target.reset()
+      load()
+    } catch (e2) {
+      setErr(e2.message || '업로드에 실패했어요.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // 비공개 파일이라, 잠깐 열어볼 임시 링크(60초)를 만들어 새 탭으로 엽니다.
+  const open = async (m) => {
+    const { data, error } = await supabase.storage.from('materials').createSignedUrl(m.storage_path, 60)
+    if (!error && data?.signedUrl) window.open(data.signedUrl, '_blank')
+  }
+
+  return (
+    <div style={{ paddingLeft: 6, marginTop: 10, borderTop: '1px solid #eee', paddingTop: 10 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#555', marginBottom: 6 }}>📚 교재</div>
+      {materials.map((m) => (
+        <span key={m.id} style={{ ...chip, background: '#f0f7ee', color: '#3d7a2e', cursor: 'pointer' }}
+          onClick={() => open(m)} title="클릭하면 열려요">
+          {m.file_type === 'pdf' ? '📄' : '🖼️'} {m.title}
+        </span>
+      ))}
+      {materials.length === 0 && <span style={{ ...muted, fontSize: 12 }}>교재 없음 · </span>}
+      <form onSubmit={upload} style={{ marginTop: 8 }}>
+        <input style={{ ...input, marginBottom: 6, padding: '8px 10px', fontSize: 13 }}
+          placeholder="교재 제목 (예: 일차방정식 p.32)" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input type="file" accept="image/*,application/pdf" style={{ fontSize: 12, flex: 1 }}
+            onChange={(e) => setFile(e.target.files[0] || null)} />
+          <button style={{ ...btn, marginTop: 0, padding: '8px 14px', fontSize: 13 }} type="submit" disabled={busy}>
+            {busy ? '올리는 중…' : '+ 교재'}
+          </button>
+        </div>
+      </form>
+      {err && <p style={errBox}>{err}</p>}
     </div>
   )
 }
