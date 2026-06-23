@@ -23,13 +23,21 @@
   - anon 키 대신 신형 **Publishable 키**(`sb_publishable_...`) 사용 — 역할 동일
   - 연결 테스트 통과: REST 응답 PGRST205("표 없음") = 연결 성공, 개발 서버 HTTP 200
 
-## ⑤ 데이터베이스 표 설계 — 진행 중
-도면 확정: `unolock-docs/설계자료/데이터베이스_설계.md` (3층 11개 시트). SQL은 `supabase/migrations/`.
-- [x] **1층(사람·공간) 생성 완료** — profiles, academies, classes, memberships, guardianships (`0001_layer1_accounts.sql`). 5개 표 HTTP 200 확인. 모두 RLS 잠금 ON.
-  - classes의 난이도 칸은 대표님 요청으로 제거(난이도는 반 이름에 포함).
-- [ ] **2층(콘텐츠) ← 바로 다음**: materials(교재), missions(미션).
-- [ ] 3층(기록): attempts, questions, answers, notifications.
-- [ ] 그 후: RLS 규칙(정보 비대칭) 추가 → 교재 업로드 → AI 출제(수학).
+## ⑤ 데이터베이스 표 설계 — 완료 ✓ (2026-06-23)
+도면: `unolock-docs/설계자료/데이터베이스_설계.md` (3층 11개 시트). SQL: `supabase/migrations/`.
+**11개 표 전부 생성·확인 완료(HTTP 200), 모두 RLS 잠금 ON.**
+- [x] 1층(사람·공간): profiles, academies, classes, memberships, guardianships (`0001`)
+  - classes 난이도 칸은 제거(난이도는 반 이름에 포함).
+- [x] 2층(콘텐츠): materials, missions (`0002`)
+- [x] 3층(기록): attempts, questions, answers, notifications (`0003`)
+  - ⚠️ 3층 SQL은 한글 주석이 붙여넣기 때 깨져서 **주석 없는 버전**으로 실행함.
+
+## 바로 다음 할 일 (⑥: 로그인/인증 설정)
+표는 다 만들었지만 아직 **사용자가 없음**(profiles는 로그인 계정과 1:1 연결).
+다음은 **출제자가 가입·로그인** → profiles 한 줄 생성하는 흐름.
+- Supabase Auth(이메일 로그인)로 시작 → 가입 시 profiles 자동 생성.
+- 로그인이 있어야 RLS 권한규칙(정보 비대칭)·교재 업로드가 의미 있어짐.
+- 순서: 로그인 → RLS 규칙 → 교재 업로드 → AI 출제(수학).
 
 ## 노트북에서 처음 시작하기
 1. **Git, Node.js, VS Code** 설치 (없으면)
