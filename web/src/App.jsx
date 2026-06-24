@@ -113,8 +113,7 @@ function Workspace({ userId }) {
       {academies.map((a) => (
         <div key={a.id} style={box}>
           <div style={{ fontWeight: 700, marginBottom: 8 }}>🏫 {a.name}</div>
-          <ClassList academyId={a.id} />
-          <MaterialList academyId={a.id} userId={userId} />
+          <ClassList academyId={a.id} userId={userId} />
         </div>
       ))}
       <form onSubmit={add} style={{ display: 'flex', gap: 8, marginTop: 10 }}>
@@ -127,8 +126,8 @@ function Workspace({ userId }) {
   )
 }
 
-// 한 학원의 반 목록 + 반 만들기
-function ClassList({ academyId }) {
+// 한 학원의 반 목록 + 반 만들기. 각 반마다 "오늘 수업(업로드 묶음)"을 갖는다.
+function ClassList({ academyId, userId }) {
   const [classes, setClasses] = useState([])
   const [name, setName] = useState('')
 
@@ -147,7 +146,12 @@ function ClassList({ academyId }) {
 
   return (
     <div style={{ paddingLeft: 6 }}>
-      {classes.map((c) => <div key={c.id} style={chip}>📘 {c.name}</div>)}
+      {classes.map((c) => (
+        <div key={c.id} style={{ ...box, background: '#fff', marginTop: 8 }}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>📘 {c.name}</div>
+          <ClassLesson classId={c.id} academyId={academyId} userId={userId} classLabel={c.name} />
+        </div>
+      ))}
       {classes.length === 0 && <span style={{ ...muted, fontSize: 12 }}>반 없음 · </span>}
       <form onSubmit={add} style={{ display: 'inline-flex', gap: 6, marginTop: 6 }}>
         <input style={{ ...input, marginBottom: 0, padding: '6px 10px', width: 130, fontSize: 13 }}
@@ -158,50 +162,65 @@ function ClassList({ academyId }) {
   )
 }
 
-// 한 학원의 교재 목록 + 교재 업로드 (사진/PDF)
-function MaterialList({ academyId, userId }) {
-  const [materials, setMaterials] = useState([])
-  const [title, setTitle] = useState('')
-  const [file, setFile] = useState(null)
+// 한 반의 "오늘 수업" = 가장 최근 업로드 묶음. 사진 여러 장을 한 번에 올리면 새 묶음이 되고,
+// 이전 묶음은 출제에 쓰이지 않는다(무시). AI 출제는 그 묶음의 여러 페이지에서 무작위로 낸다.
+function ClassLesson({ classId, academyId, userId, classLabel }) {
+  const [batch, setBatch] = useState(null)      // 현재 수업 묶음 { id, created_at }
+  const [files, setFiles] = useState([])        // 현재 묶음에 담긴 사진/PDF들
+  const [picked, setPicked] = useState([])      // 올리려고 고른 파일들
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const [genBusy, setGenBusy] = useState('')  // AI 출제 중인 교재 id
+  const [genBusy, setGenBusy] = useState(false)
   const [genErr, setGenErr] = useState('')
-  const [quiz, setQuiz] = useState(null)      // { title, questions }
-  const [solving, setSolving] = useState(null) // 학생처럼 풀어보는 교재
-  const [shareUrl, setShareUrl] = useState('')  // 방금 만든 학생 링크
+  const [quiz, setQuiz] = useState(null)        // { title, questions }
+  const [solving, setSolving] = useState(false) // 학생처럼 풀어보기
+  const [shareUrl, setShareUrl] = useState('')
 
+  // 이 반의 "가장 최근 묶음"과 그 안의 파일들을 불러온다.
   const load = async () => {
-    const { data } = await supabase.from('materials')
-      .select('id, title, file_type, storage_path, created_at')
-      .eq('academy_id', academyId).order('created_at')
-    setMaterials(data || [])
+    const { data: batches } = await supabase.from('lesson_batches')
+      .select('id, created_at').eq('class_id', classId)
+      .order('created_at', { ascending: false }).limit(1)
+    const b = batches?.[0] || null
+    setBatch(b)
+    if (b) {
+      const { data: mats } = await supabase.from('materials')
+        .select('id, title, file_type, storage_path').eq('batch_id', b.id).order('created_at')
+      setFiles(mats || [])
+    } else { setFiles([]) }
   }
-  useEffect(() => { load() }, [academyId])
+  useEffect(() => { load() }, [classId])
 
+  // 여러 장을 한 번에 업로드 → 새 묶음 1개 생성(= 오늘 수업). 이전 묶음은 자동으로 뒤로 밀림.
   const upload = async (e) => {
     e.preventDefault()
     setErr('')
-    if (!file) { setErr('파일을 먼저 선택해 주세요.'); return }
-    const fileType = file.type === 'application/pdf' ? 'pdf'
-      : file.type.startsWith('image/') ? 'image' : null
-    if (!fileType) { setErr('이미지(JPG/PNG) 또는 PDF만 올릴 수 있어요.'); return }
+    if (!picked.length) { setErr('사진을 한 장 이상 선택해 주세요.'); return }
+    for (const f of picked) {
+      const ok = f.type === 'application/pdf' || f.type.startsWith('image/')
+      if (!ok) { setErr('이미지(JPG/PNG) 또는 PDF만 올릴 수 있어요.'); return }
+    }
     setBusy(true)
     try {
-      // 파일 경로: "<학원id>/<시간>_<파일명>" — 권한 규칙이 첫 폴더(학원id)로 확인합니다.
-      const safe = file.name.replace(/[^\w.\-]/g, '_')
-      const path = `${academyId}/${Date.now()}_${safe}`
-      const up = await supabase.storage.from('materials').upload(path, file)
-      if (up.error) throw up.error
-      const ins = await supabase.from('materials').insert({
-        academy_id: academyId,
-        uploaded_by: userId,
-        title: title.trim() || file.name,
-        storage_path: path,
-        file_type: fileType,
-      })
-      if (ins.error) throw ins.error
-      setTitle(''); setFile(null)
+      // 1) 새 수업 묶음 만들기
+      const { data: b, error: bErr } = await supabase.from('lesson_batches')
+        .insert({ class_id: classId, academy_id: academyId, created_by: userId })
+        .select('id').single()
+      if (bErr) throw bErr
+      // 2) 고른 파일을 모두 올리고 materials 줄에 기록. 경로 첫 폴더는 학원id(=권한 규칙)
+      for (const f of picked) {
+        const fileType = f.type === 'application/pdf' ? 'pdf' : 'image'
+        const safe = f.name.replace(/[^\w.\-]/g, '_')
+        const path = `${academyId}/${b.id}/${Date.now()}_${safe}`
+        const up = await supabase.storage.from('materials').upload(path, f)
+        if (up.error) throw up.error
+        const ins = await supabase.from('materials').insert({
+          academy_id: academyId, class_id: classId, batch_id: b.id,
+          uploaded_by: userId, title: f.name, storage_path: path, file_type: fileType,
+        })
+        if (ins.error) throw ins.error
+      }
+      setPicked([]); setQuiz(null)
       if (e.target.reset) e.target.reset()
       load()
     } catch (e2) {
@@ -217,13 +236,14 @@ function MaterialList({ academyId, userId }) {
     if (!error && data?.signedUrl) window.open(data.signedUrl, '_blank')
   }
 
-  // AI 출제: 교재를 서버(Edge Function)로 보내 수학 문제를 생성받는다.
-  const generate = async (m) => {
-    setGenErr(''); setQuiz(null); setGenBusy(m.id)
+  // AI 출제(미리보기): 현재 묶음을 서버로 보내 문제를 받는다(서버가 페이지를 무작위로 고름).
+  const generate = async () => {
+    if (!batch) { setGenErr('먼저 사진을 올려 주세요.'); return }
+    setGenErr(''); setQuiz(null); setGenBusy(true)
     const { data, error } = await supabase.functions.invoke('generate-questions', {
-      body: { material_id: m.id },
+      body: { batch_id: batch.id },
     })
-    setGenBusy('')
+    setGenBusy(false)
     if (error) {
       let msg = error.message || 'AI 출제에 실패했어요.'
       try { const b = await error.context.json(); if (b?.error) msg = b.error } catch (_) { /* noop */ }
@@ -233,63 +253,82 @@ function MaterialList({ academyId, userId }) {
     setQuiz({ title: data?.title, questions: data?.questions || [] })
   }
 
-  // 학생에게 보낼 풀이 링크 생성 + 클립보드 복사
-  const share = async (m) => {
+  // 학생에게 보낼 링크 — 반당 1개. 이미 있으면 그대로 재사용(링크는 항상 그 반의 최신 수업을 보여줌).
+  const share = async () => {
     setGenErr(''); setShareUrl('')
-    const token = (crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`).replace(/-/g, '')
-    const { error } = await supabase.from('share_links')
-      .insert({ token, material_id: m.id, created_by: userId, label: m.title })
-    if (error) { setGenErr(error.message); return }
+    const { data: existing } = await supabase.from('share_links')
+      .select('token').eq('class_id', classId).eq('created_by', userId).limit(1)
+    let token = existing?.[0]?.token
+    if (!token) {
+      token = (crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`).replace(/-/g, '')
+      const { error } = await supabase.from('share_links')
+        .insert({ token, class_id: classId, created_by: userId, label: classLabel })
+      if (error) { setGenErr(error.message); return }
+    }
     const url = `${window.location.origin}/?s=${token}`
     try { await navigator.clipboard.writeText(url) } catch (_) { /* noop */ }
     setShareUrl(url)
   }
 
   return (
-    <div style={{ paddingLeft: 6, marginTop: 10, borderTop: '1px solid #eee', paddingTop: 10 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: '#555', marginBottom: 6 }}>📚 교재</div>
-      {materials.map((m) => (
-        <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <span style={{ ...chip, marginBottom: 0, background: '#f0f7ee', color: '#3d7a2e', cursor: 'pointer' }}
-            onClick={() => open(m)} title="클릭하면 열려요">
-            {m.file_type === 'pdf' ? '📄' : '🖼️'} {m.title}
-          </span>
-          <button type="button" disabled={genBusy === m.id}
-            style={{ ...btn, marginTop: 0, padding: '6px 12px', fontSize: 13, background: '#6c5ce7' }}
-            onClick={() => generate(m)}>
-            {genBusy === m.id ? 'AI 출제 중…' : '✨ AI 출제'}
-          </button>
-          <button type="button"
-            style={{ ...btnGhost, padding: '6px 12px', fontSize: 13 }}
-            onClick={() => setSolving(m)}>
-            ▶ 풀어보기
-          </button>
-          <button type="button"
-            style={{ ...btnGhost, padding: '6px 12px', fontSize: 13 }}
-            onClick={() => share(m)}>
-            📨 보내기
+    <div style={{ paddingLeft: 2 }}>
+      {/* 현재 수업(묶음) 파일들 */}
+      {files.length > 0 ? (
+        <div style={{ fontSize: 12, color: '#555', marginBottom: 6 }}>
+          <span style={{ fontWeight: 700 }}>오늘 수업 · {files.length}장</span>
+          <div style={{ marginTop: 4 }}>
+            {files.map((m) => (
+              <span key={m.id} style={{ ...chip, marginBottom: 4, background: '#f0f7ee', color: '#3d7a2e', cursor: 'pointer' }}
+                onClick={() => open(m)} title="클릭하면 열려요">
+                {m.file_type === 'pdf' ? '📄' : '🖼️'} {m.title}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{ ...muted, fontSize: 12 }}>아직 올린 수업이 없어요. 아래에서 사진을 올려 주세요.</div>
+      )}
+
+      {/* 버튼들 */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+        <button type="button" disabled={!batch || genBusy}
+          style={{ ...btn, marginTop: 0, padding: '6px 12px', fontSize: 13, background: '#6c5ce7', opacity: (!batch || genBusy) ? 0.5 : 1 }}
+          onClick={generate}>
+          {genBusy ? 'AI 출제 중…' : '✨ AI 출제'}
+        </button>
+        <button type="button" disabled={!batch}
+          style={{ ...btnGhost, padding: '6px 12px', fontSize: 13, opacity: batch ? 1 : 0.5 }}
+          onClick={() => setSolving(true)}>
+          ▶ 풀어보기
+        </button>
+        <button type="button"
+          style={{ ...btnGhost, padding: '6px 12px', fontSize: 13 }}
+          onClick={share}>
+          📨 학생 링크
+        </button>
+      </div>
+
+      {/* 여러 장 업로드 = 새 수업 */}
+      <form onSubmit={upload} style={{ marginTop: 4 }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input type="file" multiple accept="image/*,application/pdf" style={{ fontSize: 12, flex: 1 }}
+            onChange={(e) => setPicked(Array.from(e.target.files || []))} />
+          <button style={{ ...btn, marginTop: 0, padding: '8px 14px', fontSize: 13 }} type="submit" disabled={busy}>
+            {busy ? '올리는 중…' : picked.length > 1 ? `+ 새 수업 (${picked.length}장)` : '+ 새 수업'}
           </button>
         </div>
-      ))}
-      {materials.length === 0 && <span style={{ ...muted, fontSize: 12 }}>교재 없음 · </span>}
-      <form onSubmit={upload} style={{ marginTop: 8 }}>
-        <input style={{ ...input, marginBottom: 6, padding: '8px 10px', fontSize: 13 }}
-          placeholder="교재 제목 (예: 일차방정식 p.32)" value={title} onChange={(e) => setTitle(e.target.value)} />
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <input type="file" accept="image/*,application/pdf" style={{ fontSize: 12, flex: 1 }}
-            onChange={(e) => setFile(e.target.files[0] || null)} />
-          <button style={{ ...btn, marginTop: 0, padding: '8px 14px', fontSize: 13 }} type="submit" disabled={busy}>
-            {busy ? '올리는 중…' : '+ 교재'}
-          </button>
+        <div style={{ ...muted, fontSize: 11, marginTop: 4 }}>
+          여러 장을 한 번에 고르면 한 수업이 됩니다. 새로 올리면 이전 수업은 출제에서 빠져요.
         </div>
       </form>
+
       {err && <p style={errBox}>{err}</p>}
       {genErr && <p style={errBox}>{genErr}</p>}
       {shareUrl && (
         <div style={{ marginTop: 8, fontSize: 12, background: '#eef7ff', border: '1px solid #cfe6ff', borderRadius: 8, padding: '8px 10px' }}>
-          ✅ 학생에게 보낼 링크가 <b>복사</b>됐어요. 카톡 등에 붙여넣어 보내세요:
+          ✅ 이 반 학생에게 보낼 링크가 <b>복사</b>됐어요. 카톡 등에 붙여넣어 보내세요:
           <div style={{ marginTop: 4, wordBreak: 'break-all', color: '#2E75B6' }}>{shareUrl}</div>
-          <div style={{ marginTop: 4, color: '#999' }}>※ 이 링크는 인터넷에 공개돼 있어 학생 폰에서도 바로 열립니다.</div>
+          <div style={{ marginTop: 4, color: '#999' }}>※ 링크 하나로 충분해요. 새 수업을 올리면 학생은 같은 링크에서 항상 오늘 수업을 풉니다.</div>
         </div>
       )}
       {quiz && (
@@ -312,13 +351,13 @@ function MaterialList({ academyId, userId }) {
           )}
         </div>
       )}
-      {solving && <Solver material={solving} onClose={() => setSolving(null)} />}
+      {solving && batch && <Solver batch={batch} onClose={() => setSolving(false)} />}
     </div>
   )
 }
 
 // 학생처럼 풀어보기 — 풀이 → 채점 → 8할 미달 시 비슷한 새 문제 재출제 → 통과
-function Solver({ material, token, onClose }) {
+function Solver({ batch, token, onClose }) {
   const isPublic = !!token
   const [round, setRound] = useState(1)
   const [questions, setQuestions] = useState([])
@@ -326,11 +365,11 @@ function Solver({ material, token, onClose }) {
   const [phase, setPhase] = useState('loading') // loading | solving | graded
   const [graded, setGraded] = useState(null)
   const [err, setErr] = useState('')
-  const [title, setTitle] = useState(material?.title || '')
+  const [title, setTitle] = useState('')
 
   const fetchQuestions = async (prev) => {
     setPhase('loading'); setErr(''); setAnswers({}); setGraded(null)
-    const base = isPublic ? { token } : { material_id: material.id }
+    const base = isPublic ? { token } : { batch_id: batch.id }
     const reqBody = (prev && prev.length) ? { ...base, previous: prev } : base
     const { data, error } = await supabase.functions.invoke(
       isPublic ? 'solve-link' : 'generate-questions',

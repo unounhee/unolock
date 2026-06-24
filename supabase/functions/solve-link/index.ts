@@ -1,6 +1,6 @@
 // ============================================================
 // UnoLock · 학생 공개 풀이 — Supabase Edge Function (로그인 불필요)
-// 첫 출제: 링크 토큰 → 교재 → Claude로 문제 생성.
+// 첫 출제: 링크 토큰 → 그 반의 "현재 수업 묶음" → 무작위 페이지로 Claude 문제 생성.
 // 재출제(previous 있음): 직전 문항의 "구조 그대로, 숫자만 바꾼 변형" 생성.
 // service_role로 교재를 읽지만, "유효한 토큰"이 있어야만 동작(접근 통제).
 // ⚠️ 배포 시 "Verify JWT" 를 OFF 로 둘 것(학생은 로그인 안 함).
@@ -28,6 +28,23 @@ function mediaTypeFor(path: string): string {
   if (p.endsWith(".gif")) return "image/gif"
   if (p.endsWith(".pdf")) return "application/pdf"
   return "image/jpeg"
+}
+
+// 묶음의 여러 페이지 중에서 무작위로 최대 2장을 골라 이미지/문서 블록으로 만든다(출제마다 랜덤).
+async function buildImageBlocks(client: any, files: { storage_path: string }[]) {
+  const shuffled = [...files].sort(() => Math.random() - 0.5)
+  const pick = shuffled.slice(0, Math.min(2, shuffled.length))
+  const blocks: any[] = []
+  for (const f of pick) {
+    const { data: file } = await client.storage.from("materials").download(f.storage_path)
+    if (!file) continue
+    const base64 = encodeBase64(new Uint8Array(await file.arrayBuffer()))
+    const mediaType = mediaTypeFor(f.storage_path)
+    blocks.push(mediaType === "application/pdf"
+      ? { type: "document", source: { type: "base64", media_type: mediaType, data: base64 } }
+      : { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } })
+  }
+  return blocks
 }
 
 const SCHEMA = {
@@ -63,6 +80,7 @@ const PROMPT = `너는 한국 중·고등 수학 출제 선생님이야. 첨부�
 3. explanation에는 "최종 문제의 풀이"만 1~2줄로 써. 출제 과정·자기검토·고민·
    '문제를 교체합니다' 같은 혼잣말이나 메타 설명은 절대 쓰지 마.
 4. body(문제)·correct_answer(정답)·explanation(해설)은 반드시 같은 하나의 문제에 대해 서로 일치해야 해.
+5. 교재가 여러 페이지면, 그 안에서 골고루(어느 한 페이지에 치우치지 말고) 문제를 뽑아.
 
 [형식]
 - 객관식(type:"mc") 3문제 + 주관식(type:"short") 2문제, 총 5문제.
@@ -93,27 +111,38 @@ Deno.serve(async (req: Request) => {
     )
 
     const { data: link } = await admin
-      .from("share_links").select("material_id").eq("token", token).single()
+      .from("share_links").select("class_id, material_id").eq("token", token).single()
     if (!link) return json({ error: "유효하지 않은 링크예요." }, 404)
 
-    const { data: mat } = await admin
-      .from("materials").select("id, title, storage_path").eq("id", link.material_id).single()
-    if (!mat || !mat.storage_path) return json({ error: "교재를 찾을 수 없어요." }, 404)
-
-    // 재출제(previous)면 교재 없이 직전 문항의 변형을 만든다. 첫 출제면 교재 이미지로.
+    // 재출제(previous)면 교재 없이 직전 문항의 변형을 만든다. 첫 출제면 그 반 최신 묶음의 사진들로.
     let content: any[]
+    let title = "오늘의 수학 미션"
     if (previous && previous.length) {
       content = [{ type: "text", text: PROMPT + "\n\n" + VARIANT + "\n\n직전 문항(JSON):\n" + JSON.stringify(previous) }]
     } else {
-      const { data: file, error: dlErr } = await admin.storage
-        .from("materials").download(mat.storage_path)
-      if (dlErr || !file) return json({ error: "교재 파일을 불러오지 못했어요." }, 500)
-      const base64 = encodeBase64(new Uint8Array(await file.arrayBuffer()))
-      const mediaType = mediaTypeFor(mat.storage_path)
-      const mediaBlock = mediaType === "application/pdf"
-        ? { type: "document", source: { type: "base64", media_type: mediaType, data: base64 } }
-        : { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } }
-      content = [mediaBlock, { type: "text", text: PROMPT }]
+      let files: { storage_path: string }[] = []
+      if (link.class_id) {
+        // 그 반의 "가장 최근 수업 묶음" 하나
+        const { data: batches } = await admin
+          .from("lesson_batches").select("id, classes(name)")
+          .eq("class_id", link.class_id).order("created_at", { ascending: false }).limit(1)
+        const b = batches?.[0]
+        if (!b) return json({ error: "아직 오늘 수업이 올라오지 않았어요. 선생님께 문의해 주세요." }, 404)
+        const cname = (b as any).classes?.name
+        if (cname) title = `${cname} · 오늘 수업`
+        const { data: mats } = await admin
+          .from("materials").select("storage_path").eq("batch_id", (b as any).id).order("created_at")
+        files = (mats || []).filter((m: any) => m.storage_path)
+      } else if (link.material_id) {
+        // 옛 단일 교재 링크 호환
+        const { data: m } = await admin
+          .from("materials").select("storage_path, title").eq("id", link.material_id).single()
+        if (m?.storage_path) { files = [m as any]; title = (m as any).title || title }
+      }
+      if (!files.length) return json({ error: "교재를 찾을 수 없어요." }, 404)
+      const blocks = await buildImageBlocks(admin, files)
+      if (!blocks.length) return json({ error: "교재 파일을 불러오지 못했어요." }, 500)
+      content = [...blocks, { type: "text", text: PROMPT }]
     }
 
     const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! })
@@ -131,7 +160,7 @@ Deno.serve(async (req: Request) => {
     } catch (_) {
       return json({ error: "문제 생성 결과를 읽지 못했어요(형식 오류). 다시 시도해 주세요." }, 502)
     }
-    return json({ title: mat.title, questions: parsed.questions ?? [] })
+    return json({ title, questions: parsed.questions ?? [] })
   } catch (e) {
     return json({ error: (e as Error)?.message ?? String(e) }, 500)
   }
