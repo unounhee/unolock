@@ -1,5 +1,30 @@
 import { useEffect, useState } from 'react'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
 import { supabase, hasKeys } from './supabaseClient'
+
+// AI가 쓴 LaTeX 수식($...$)을 예쁜 수식으로 그려준다. 수식이 아니면 그냥 글자.
+function MathText({ children }) {
+  const parts = String(children ?? '').split(/(\$\$[^$]*\$\$|\$[^$]*\$)/g)
+  return (
+    <>
+      {parts.map((p, i) => {
+        const display = p.startsWith('$$') && p.endsWith('$$') && p.length >= 4
+        const inline = !display && p.startsWith('$') && p.endsWith('$') && p.length >= 2
+        if (display || inline) {
+          const tex = p.slice(display ? 2 : 1, p.length - (display ? 2 : 1))
+          try {
+            const html = katex.renderToString(tex, { throwOnError: false, displayMode: display })
+            return <span key={i} dangerouslySetInnerHTML={{ __html: html }} />
+          } catch (_) {
+            return <span key={i}>{p}</span>
+          }
+        }
+        return <span key={i}>{p}</span>
+      })}
+    </>
+  )
+}
 
 function App() {
   const [session, setSession] = useState(null)
@@ -140,6 +165,7 @@ function MaterialList({ academyId, userId }) {
   const [genBusy, setGenBusy] = useState('')  // AI 출제 중인 교재 id
   const [genErr, setGenErr] = useState('')
   const [quiz, setQuiz] = useState(null)      // { title, questions }
+  const [solving, setSolving] = useState(null) // 학생처럼 풀어보는 교재
 
   const load = async () => {
     const { data } = await supabase.from('materials')
@@ -217,6 +243,11 @@ function MaterialList({ academyId, userId }) {
             onClick={() => generate(m)}>
             {genBusy === m.id ? 'AI 출제 중…' : '✨ AI 출제'}
           </button>
+          <button type="button"
+            style={{ ...btnGhost, padding: '6px 12px', fontSize: 13 }}
+            onClick={() => setSolving(m)}>
+            ▶ 풀어보기
+          </button>
         </div>
       ))}
       {materials.length === 0 && <span style={{ ...muted, fontSize: 12 }}>교재 없음 · </span>}
@@ -240,12 +271,12 @@ function MaterialList({ academyId, userId }) {
           </div>
           {(quiz.questions || []).map((q, i) => (
             <div key={i} style={{ marginBottom: 10, fontSize: 13 }}>
-              <div style={{ fontWeight: 600 }}>{i + 1}. [{q.type === 'mc' ? '객관식' : '주관식'}] {q.body}</div>
+              <div style={{ fontWeight: 600 }}>{i + 1}. [{q.type === 'mc' ? '객관식' : '주관식'}] <MathText>{q.body}</MathText></div>
               {q.type === 'mc' && (q.choices || []).map((c, j) => (
-                <div key={j} style={{ color: '#555', marginLeft: 8 }}>{['①', '②', '③', '④', '⑤'][j] || '·'} {c}</div>
+                <div key={j} style={{ color: '#555', marginLeft: 8 }}>{['①', '②', '③', '④', '⑤'][j] || '·'} <MathText>{c}</MathText></div>
               ))}
-              <div style={{ color: '#2e7d32', marginTop: 2 }}>정답: {q.correct_answer}</div>
-              {q.explanation && <div style={{ color: '#888' }}>해설: {q.explanation}</div>}
+              <div style={{ color: '#2e7d32', marginTop: 2 }}>정답: <MathText>{q.correct_answer}</MathText></div>
+              {q.explanation && <div style={{ color: '#888' }}>해설: <MathText>{q.explanation}</MathText></div>}
             </div>
           ))}
           {(!quiz.questions || quiz.questions.length === 0) && (
@@ -253,6 +284,131 @@ function MaterialList({ academyId, userId }) {
           )}
         </div>
       )}
+      {solving && <Solver material={solving} onClose={() => setSolving(null)} />}
+    </div>
+  )
+}
+
+// 학생처럼 풀어보기 — 풀이 → 채점 → 8할 미달 시 비슷한 새 문제 재출제 → 통과
+function Solver({ material, onClose }) {
+  const [round, setRound] = useState(1)
+  const [questions, setQuestions] = useState([])
+  const [answers, setAnswers] = useState({})   // 문제번호 → 학생 답
+  const [phase, setPhase] = useState('loading') // loading | solving | graded
+  const [graded, setGraded] = useState(null)
+  const [err, setErr] = useState('')
+
+  const fetchQuestions = async () => {
+    setPhase('loading'); setErr(''); setAnswers({}); setGraded(null)
+    const { data, error } = await supabase.functions.invoke('generate-questions', {
+      body: { material_id: material.id },
+    })
+    if (error) {
+      let msg = error.message || '문제를 불러오지 못했어요.'
+      try { const b = await error.context.json(); if (b?.error) msg = b.error } catch (_) { /* noop */ }
+      setErr(msg); setQuestions([]); setPhase('solving'); return
+    }
+    if (data?.error) { setErr(data.error); setQuestions([]); setPhase('solving'); return }
+    setQuestions(data.questions || [])
+    setPhase('solving')
+  }
+  useEffect(() => { fetchQuestions() }, [round]) // 회차가 바뀌면 새 문제로 재출제
+
+  const norm = (s) => (s ?? '').toString().trim().replace(/\s+/g, ' ').toLowerCase()
+  const allAnswered = questions.length > 0 && questions.every((_, i) => (answers[i] ?? '') !== '')
+
+  const grade = () => {
+    const results = questions.map((q, i) => ({
+      correct: (answers[i] ?? '') !== '' && norm(answers[i]) === norm(q.correct_answer),
+    }))
+    const correctCount = results.filter((r) => r.correct).length
+    const total = questions.length || 1
+    setGraded({ results, correctCount, total, passed: correctCount / total >= 0.8 })
+    setPhase('graded')
+  }
+
+  const tag = { fontSize: 11, fontWeight: 700, color: '#fff', background: '#6c5ce7', borderRadius: 12, padding: '3px 10px' }
+
+  return (
+    <div style={{ marginTop: 12, border: '2px solid #c5b9f7', borderRadius: 14, background: '#fff', padding: '14px 16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={tag}>수학</span>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>{material.title}</span>
+          <span style={{ fontSize: 11, color: '#999' }}>· 통과 80% · {round}회차</span>
+        </div>
+        <button style={{ ...btnGhost, padding: '4px 10px', fontSize: 12 }} onClick={onClose}>닫기 ✕</button>
+      </div>
+
+      {err && <p style={errBox}>{err}</p>}
+      {phase === 'loading' && <p style={{ ...muted, textAlign: 'center', padding: 16 }}>⏳ AI가 문제를 준비하고 있어요…</p>}
+
+      {phase !== 'loading' && questions.map((q, i) => {
+        const r = graded?.results[i]
+        return (
+          <div key={i} style={{ marginBottom: 14, paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
+            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>
+              {i + 1}. <MathText>{q.body}</MathText>
+              {graded && (r.correct
+                ? <span style={{ color: '#2e7d32', marginLeft: 6 }}>✓ 정답</span>
+                : <span style={{ color: '#d64545', marginLeft: 6 }}>✗ 오답</span>)}
+            </div>
+            {q.type === 'mc' ? (
+              (q.choices || []).map((c, j) => {
+                const sel = answers[i] === c
+                const isCorrect = graded && norm(c) === norm(q.correct_answer)
+                let bg = '#fff', bd = '#ddd'
+                if (graded) { if (isCorrect) { bg = '#eafaf0'; bd = '#2eb86a' } else if (sel) { bg = '#fff0f0'; bd = '#e08e8e' } }
+                else if (sel) { bg = '#f3f1fe'; bd = '#6c5ce7' }
+                return (
+                  <button key={j} type="button" disabled={phase === 'graded'}
+                    onClick={() => setAnswers({ ...answers, [i]: c })}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', marginBottom: 6, padding: '9px 12px',
+                      borderRadius: 9, border: `1.5px solid ${bd}`, background: bg,
+                      cursor: phase === 'graded' ? 'default' : 'pointer', fontSize: 14 }}>
+                    {['①', '②', '③', '④', '⑤'][j] || '·'} <MathText>{c}</MathText>
+                  </button>
+                )
+              })
+            ) : (
+              <input disabled={phase === 'graded'} value={answers[i] ?? ''}
+                onChange={(e) => setAnswers({ ...answers, [i]: e.target.value })}
+                placeholder="답을 입력하세요"
+                style={{ ...input, marginBottom: 0, fontSize: 14 }} />
+            )}
+            {graded && (
+              <div style={{ fontSize: 12, color: '#666', marginTop: 6 }}>
+                정답: <b><MathText>{q.correct_answer}</MathText></b>
+                {q.explanation && <> · <MathText>{q.explanation}</MathText></>}
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {phase === 'solving' && questions.length > 0 && (
+        <button style={{ ...btn, width: '100%' }} disabled={!allAnswered} onClick={grade}>
+          {allAnswered ? '채점하기' : '모든 문제에 답해주세요'}
+        </button>
+      )}
+
+      {phase === 'graded' && graded && (graded.passed ? (
+        <div style={{ textAlign: 'center', padding: '8px 0' }}>
+          <div style={{ fontSize: 40 }}>🏆</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#1a6b32' }}>미션 통과! ({graded.correctCount}/{graded.total})</div>
+          <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>📨 (실제 서비스에선 부모님께 “통과했어요” 알림이 갑니다)</div>
+          <button style={{ ...btnGhost, marginTop: 10 }} onClick={onClose}>닫기</button>
+        </div>
+      ) : (
+        <div style={{ textAlign: 'center', padding: '8px 0' }}>
+          <div style={{ fontSize: 36 }}>📘</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: '#6c5ce7' }}>조금만 더! ({graded.correctCount}/{graded.total})</div>
+          <div style={{ fontSize: 12, color: '#888', margin: '4px 0 10px' }}>해설을 보고, 비슷한 새 문제로 다시 도전해요.</div>
+          <button style={{ ...btn, width: '100%', background: '#6c5ce7' }} onClick={() => setRound((r) => r + 1)}>
+            ✨ 비슷한 문제로 다시 도전
+          </button>
+        </div>
+      ))}
     </div>
   )
 }

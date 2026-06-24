@@ -56,11 +56,15 @@ const SCHEMA = {
 const PROMPT = `너는 한국 중·고등 수학 출제 선생님이야.
 첨부된 교재(이미지 또는 PDF)를 보고, 그 내용에 맞는 수학 문제를 만들어줘.
 - 객관식(type:"mc") 3문제 + 주관식(type:"short") 2문제, 총 5문제.
-- 객관식은 choices에 보기 4개를 넣고, correct_answer는 정답 보기의 "텍스트"로.
-- 주관식은 choices 없이, correct_answer는 정답 값으로.
+- 객관식은 choices에 보기 4개를 넣고, correct_answer는 정답 보기의 "텍스트"와 똑같이 적어.
+- 주관식(short)은 정답이 "딱 하나의 명확한 값"(보통 정수나 간단한 분수 같은 숫자)인 문제만 내.
+  '2x+y'처럼 순서·띄어쓰기에 따라 여러 형태로 쓸 수 있는 문자식 답은 주관식에 절대 쓰지 마.
+  (문자식으로 답하는 문제가 필요하면 그건 객관식으로 내서 보기 중 고르게 해.)
+- 주관식 correct_answer는 공백 없이 한 가지 표준형으로 적어(예: "12", "3/2").
+- 정답과 해설을 스스로 검산해서 반드시 일치시켜. 계산 실수는 절대 금지.
 - 난이도는 교재 수준에 맞춰 너무 어렵지 않게(매일 가볍게 푸는 '리추얼'용).
-- explanation에는 풀이를 1~2줄로 쉽게.
-- 모든 텍스트는 한국어로.`
+- 수식은 LaTeX로 쓰고 인라인 수식은 $...$ 로 감싸. explanation 풀이는 1~2줄로 쉽게.
+- 모든 설명 텍스트는 한국어로.`
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors })
@@ -100,7 +104,7 @@ Deno.serve(async (req: Request) => {
 
     const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! })
     const msg = await anthropic.messages.create({
-      model: "claude-haiku-4-5", // 기본 저가 모델. 복잡하면 나중에 sonnet으로 라우팅.
+      model: "claude-sonnet-4-6", // 수학 정확도 위해 Sonnet. 더 저렴하게 하려면 "claude-haiku-4-5" 로 바꾸면 됨.
       max_tokens: 2000,
       messages: [{ role: "user", content: [mediaBlock as any, { type: "text", text: PROMPT }] }],
       // 정해진 형식(JSON)으로만 답하게 강제
