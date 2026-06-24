@@ -357,7 +357,7 @@ function ClassLesson({ classId, academyId, userId, classLabel }) {
 }
 
 // 학생처럼 풀어보기 — 풀이 → 채점 → 8할 미달 시 비슷한 새 문제 재출제 → 통과
-function Solver({ batch, token, onClose }) {
+function Solver({ batch, token, studentName, onClose }) {
   const isPublic = !!token
   const [round, setRound] = useState(1)
   const [questions, setQuestions] = useState([])
@@ -398,6 +398,19 @@ function Solver({ batch, token, onClose }) {
     const total = questions.length || 1
     setGraded({ results, correctCount, total, passed: correctCount / total >= 0.8 })
     setPhase('graded')
+
+    // 학생(공개 링크) 풀이면 결과를 서버에 기록한다. (서버가 정답을 다시 대조해 채점)
+    // 출제자 미리보기(batch 기반)는 기록하지 않는다. 기록 실패는 학생 화면을 막지 않는다.
+    if (isPublic) {
+      const items = questions.map((q, i) => ({
+        type: q.type, body: q.body, choices: q.choices,
+        correct_answer: q.correct_answer, explanation: q.explanation,
+        student_answer: answers[i] ?? '',
+      }))
+      supabase.functions.invoke('record-attempt', {
+        body: { token, student_name: studentName, attempt_no: round, items },
+      }).catch(() => { /* noop */ })
+    }
   }
 
   // 재출제: 직전 문항의 구조는 그대로, 숫자만 바꾼 새 문제를 받는다.
@@ -494,12 +507,28 @@ function Solver({ batch, token, onClose }) {
 }
 
 // 학생이 공유 링크(?s=토큰)로 들어왔을 때 보는 전체 화면 (로그인 없음)
+// 먼저 이름을 한 번 입력받고(결과 기록용), 그다음 풀이를 시작한다.
 function PublicSolve({ token }) {
+  const [name, setName] = useState('')
+  const [entered, setEntered] = useState('')
+
   return (
     <div style={{ ...panel, width: 460 }}>
       <div style={{ fontSize: 18, fontWeight: 800, color: '#1a1a1a' }}>📚 오늘의 수학 미션</div>
       <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>UnoLock · 선생님이 보낸 문제예요</div>
-      <Solver token={token} />
+      {!entered ? (
+        <form onSubmit={(e) => { e.preventDefault(); if (name.trim()) setEntered(name.trim()) }}
+          style={{ marginTop: 8 }}>
+          <label style={{ fontSize: 13, fontWeight: 700 }}>이름을 입력해 주세요</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40}
+            placeholder="예: 김유노" autoFocus style={{ ...input, marginTop: 6 }} />
+          <button type="submit" disabled={!name.trim()} style={{ ...btn, width: '100%' }}>
+            시작하기 ▶
+          </button>
+        </form>
+      ) : (
+        <Solver token={token} studentName={entered} />
+      )}
       <p style={foot}>UnoLock</p>
     </div>
   )
