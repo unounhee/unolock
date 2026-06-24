@@ -137,6 +137,9 @@ function MaterialList({ academyId, userId }) {
   const [file, setFile] = useState(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [genBusy, setGenBusy] = useState('')  // AI 출제 중인 교재 id
+  const [genErr, setGenErr] = useState('')
+  const [quiz, setQuiz] = useState(null)      // { title, questions }
 
   const load = async () => {
     const { data } = await supabase.from('materials')
@@ -184,14 +187,37 @@ function MaterialList({ academyId, userId }) {
     if (!error && data?.signedUrl) window.open(data.signedUrl, '_blank')
   }
 
+  // AI 출제: 교재를 서버(Edge Function)로 보내 수학 문제를 생성받는다.
+  const generate = async (m) => {
+    setGenErr(''); setQuiz(null); setGenBusy(m.id)
+    const { data, error } = await supabase.functions.invoke('generate-questions', {
+      body: { material_id: m.id },
+    })
+    setGenBusy('')
+    if (error) {
+      let msg = error.message || 'AI 출제에 실패했어요.'
+      try { const b = await error.context.json(); if (b?.error) msg = b.error } catch (_) { /* noop */ }
+      setGenErr(msg); return
+    }
+    if (data?.error) { setGenErr(data.error); return }
+    setQuiz({ title: data?.title, questions: data?.questions || [] })
+  }
+
   return (
     <div style={{ paddingLeft: 6, marginTop: 10, borderTop: '1px solid #eee', paddingTop: 10 }}>
       <div style={{ fontSize: 13, fontWeight: 700, color: '#555', marginBottom: 6 }}>📚 교재</div>
       {materials.map((m) => (
-        <span key={m.id} style={{ ...chip, background: '#f0f7ee', color: '#3d7a2e', cursor: 'pointer' }}
-          onClick={() => open(m)} title="클릭하면 열려요">
-          {m.file_type === 'pdf' ? '📄' : '🖼️'} {m.title}
-        </span>
+        <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <span style={{ ...chip, marginBottom: 0, background: '#f0f7ee', color: '#3d7a2e', cursor: 'pointer' }}
+            onClick={() => open(m)} title="클릭하면 열려요">
+            {m.file_type === 'pdf' ? '📄' : '🖼️'} {m.title}
+          </span>
+          <button type="button" disabled={genBusy === m.id}
+            style={{ ...btn, marginTop: 0, padding: '6px 12px', fontSize: 13, background: '#6c5ce7' }}
+            onClick={() => generate(m)}>
+            {genBusy === m.id ? 'AI 출제 중…' : '✨ AI 출제'}
+          </button>
+        </div>
       ))}
       {materials.length === 0 && <span style={{ ...muted, fontSize: 12 }}>교재 없음 · </span>}
       <form onSubmit={upload} style={{ marginTop: 8 }}>
@@ -206,6 +232,27 @@ function MaterialList({ academyId, userId }) {
         </div>
       </form>
       {err && <p style={errBox}>{err}</p>}
+      {genErr && <p style={errBox}>{genErr}</p>}
+      {quiz && (
+        <div style={{ marginTop: 10, background: '#faf9ff', border: '1px solid #e6e1fb', borderRadius: 10, padding: '12px 14px' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#4b3bbd', marginBottom: 8 }}>
+            ✨ AI가 만든 문제 미리보기{quiz.title ? ` · ${quiz.title}` : ''}
+          </div>
+          {(quiz.questions || []).map((q, i) => (
+            <div key={i} style={{ marginBottom: 10, fontSize: 13 }}>
+              <div style={{ fontWeight: 600 }}>{i + 1}. [{q.type === 'mc' ? '객관식' : '주관식'}] {q.body}</div>
+              {q.type === 'mc' && (q.choices || []).map((c, j) => (
+                <div key={j} style={{ color: '#555', marginLeft: 8 }}>{['①', '②', '③', '④', '⑤'][j] || '·'} {c}</div>
+              ))}
+              <div style={{ color: '#2e7d32', marginTop: 2 }}>정답: {q.correct_answer}</div>
+              {q.explanation && <div style={{ color: '#888' }}>해설: {q.explanation}</div>}
+            </div>
+          ))}
+          {(!quiz.questions || quiz.questions.length === 0) && (
+            <div style={{ ...muted, fontSize: 12 }}>문제가 비어있어요. 다시 시도해 주세요.</div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

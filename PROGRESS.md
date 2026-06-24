@@ -54,12 +54,24 @@
 - [x] 8-2: 업로드 UI — `web/src/App.jsx`에 학원별 "📚 교재" 영역(`MaterialList`): 제목+파일선택 업로드, 목록 칩, 클릭 시 서명URL(60초)로 열기.
 - [x] 8-3: 실제 업로드·열기 테스트 통과.
 
-## 🖥️ 다음 할 일 (현재 위치) — ⑨ AI 출제(수학)
-교재를 Claude AI가 읽고 수학 문제를 생성. "교사 노동 0"의 핵심.
-- ⚠️ **Claude API 키 필요** = 진짜 비밀 키. 사용자가 직접 입력, 채팅에 붙여넣지 말 것.
-- 브라우저에 키 노출 막기 위해 **Supabase Edge Function**(서버측)에서 Claude 호출 예정.
-- 흐름(예정): 교재 선택 → Edge Function이 교재 읽고 Claude(Haiku 기본)로 문제 생성 → `missions`/`questions` 표에 저장 → 화면에 출제 결과 표시.
-- 보류: 7-3(학생·학부모 권한)은 학생/학부모 화면 만들 때 함께.
+## ⑨ AI 출제(수학) — 완료 ✓ (2026-06-24) ★ 핵심 루프 첫 동작!
+교재를 Claude AI가 읽고 수학 문제(객관식3+주관식2+해설)를 생성. "교사 노동 0"의 심장.
+- [x] 9-1: Claude API 키 발급(Anthropic Console) — 사용 한도 설정.
+- [x] 9-2: 키를 Supabase Secrets에 `ANTHROPIC_API_KEY` 로 저장(브라우저 노출 0).
+- [x] 9-3: Edge Function `supabase/functions/generate-questions/index.ts` 작성·배포.
+  - 호출자 JWT로 RLS 적용(자기 교재만) → Storage에서 파일 download → base64 →
+    Claude `claude-haiku-4-5` + 구조화출력(JSON schema)으로 문제 생성 → 반환.
+- [x] 9-4: 웹 `MaterialList`에 "✨ AI 출제" 버튼 + 결과 미리보기(`supabase.functions.invoke`).
+- [x] 9-5: 실제 교재로 문제 생성 성공 확인.
+- 메모: 지금은 **미리보기(반환)** 까지. `missions`/`questions` 표 저장은 학생 풀이 흐름 만들 때
+  연결(questions는 attempt_id에 묶여서, 학생 attempt 시점에 생성·저장하는 구조).
+
+## 🖥️ 다음 할 일 (현재 위치)
+핵심 루프의 출제자 쪽(교재→AI출제)이 동작함. 다음 후보:
+- **학생 풀이 화면**(Flutter 시작): 오늘의 미션 → 문제 풀이 → 채점·재출제 루프 → 통과.
+  - 이때 `attempts`/`questions`/`answers` 표에 실제 저장 + 7-3(학생/학부모 정보 비대칭 권한) 함께.
+- 또는 출제자 쪽 보강: 반에 미션 배포(`missions` 저장), 난이도 옵션(상/중/하) 등.
+- 보류: 영단어 과목, 폰 잠금(2차), 결제, 주간 리포트.
 
 ## 노트북에서 처음 시작하기
 1. **Git, Node.js, VS Code** 설치 (없으면)
