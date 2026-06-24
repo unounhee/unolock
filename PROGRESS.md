@@ -85,10 +85,16 @@
 - ⚠️ 교훈: `thinking:{adaptive}` + `output_config` + max_tokens 낮음 → JSON 잘림/낭비. **thinking 제거함.**
 - 한계: 링크가 아직 `localhost` → 다른 기기에서 열리려면 웹 인터넷 배포 필요(아래).
 
+## ⑫ 웹 인터넷 배포 — 완료 ✓ (2026-06-24)
+공개 URL 확보 → 보낸 링크가 학생 폰에서 진짜로 열림.
+- [x] 12-1: **Cloudflare Pages**에 GitHub(unounhee/unolock) 연결 배포. 루트 `web`, 빌드 `npm run build`, 출력 `dist`.
+  Supabase 값 2개는 Cloudflare 환경변수에 입력. 이후 git push 시 자동 재배포.
+- [x] 12-2: 공개 주소 **https://unolock.pages.dev** (HTTP 200 확인). 최신 빌드 해시 일치 확인.
+- [x] 12-3: 공유 링크는 `window.location.origin` 사용 → 자동으로 `https://unolock.pages.dev/?s=토큰` 생성.
+  Edge Function 2개 CORS `*` 라 새 도메인에서 호출 OK. 화면의 옛 'localhost' 안내문구 수정.
+
 ## 🖥️ 다음 할 일 (현재 위치)
-링크로 학생이 풀이까지 웹에서 완성. 다음 후보:
-- **웹 인터넷 배포(호스팅)** ⭐ — Vercel 등에 올려 공개 URL 확보. → 그래야 보낸 링크가 학생 폰에서 열림(진짜 테스트).
-  (Vite 빌드 + `.env`의 Supabase 값 호스팅쪽에 입력 필요.)
+인터넷 배포 완료. 링크가 학생 폰에서 열림. 다음 후보:
 - **풀이 결과 저장**: `attempts`/`questions`/`answers` 기록(통과 여부·재시험 횟수 → 정보 비대칭 데이터) + 7-3 권한.
 - **학부모 통과 알림**(`notifications`).
 - 그 뒤(앱화): 학생/학부모 Flutter 앱 + 폰 잠금(2차).

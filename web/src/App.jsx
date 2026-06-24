@@ -289,7 +289,7 @@ function MaterialList({ academyId, userId }) {
         <div style={{ marginTop: 8, fontSize: 12, background: '#eef7ff', border: '1px solid #cfe6ff', borderRadius: 8, padding: '8px 10px' }}>
           ✅ 학생에게 보낼 링크가 <b>복사</b>됐어요. 카톡 등에 붙여넣어 보내세요:
           <div style={{ marginTop: 4, wordBreak: 'break-all', color: '#2E75B6' }}>{shareUrl}</div>
-          <div style={{ marginTop: 4, color: '#999' }}>※ 지금은 이 컴퓨터(localhost)에서만 열려요. ⑪-4에서 인터넷에 올리면 다른 폰에서도 열립니다.</div>
+          <div style={{ marginTop: 4, color: '#999' }}>※ 이 링크는 인터넷에 공개돼 있어 학생 폰에서도 바로 열립니다.</div>
         </div>
       )}
       {quiz && (
