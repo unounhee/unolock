@@ -1,8 +1,9 @@
 // ============================================================
-// UnoLock · AI 출제 (수학) — Supabase Edge Function
-// 첫 출제: 교재(사진/PDF)를 읽고 Claude가 문제 생성.
-// 재출제(previous 있음): 직전 문항의 "구조는 그대로, 숫자만 바꾼 변형" 생성.
-// 비밀키는 Supabase Secrets의 ANTHROPIC_API_KEY 에서만 읽는다(브라우저 노출 없음).
+// UnoLock · 학생 공개 풀이 — Supabase Edge Function (로그인 불필요)
+// 첫 출제: 링크 토큰 → 교재 → Claude로 문제 생성.
+// 재출제(previous 있음): 직전 문항의 "구조 그대로, 숫자만 바꾼 변형" 생성.
+// service_role로 교재를 읽지만, "유효한 토큰"이 있어야만 동작(접근 통제).
+// ⚠️ 배포 시 "Verify JWT" 를 OFF 로 둘 것(학생은 로그인 안 함).
 // ============================================================
 import { createClient } from "npm:@supabase/supabase-js@2"
 import Anthropic from "npm:@anthropic-ai/sdk"
@@ -80,36 +81,31 @@ const VARIANT = `[재출제 — 숫자만 바꾸기]
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors })
   try {
-    const authHeader = req.headers.get("Authorization")
-    if (!authHeader) return json({ error: "로그인이 필요해요." }, 401)
-
     const body0 = await req.json().catch(() => ({}))
-    const material_id = body0.material_id
+    const token = body0.token
     const previous = Array.isArray(body0.previous) ? body0.previous : null
-    if (!material_id) return json({ error: "material_id 가 필요해요." }, 400)
+    if (!token) return json({ error: "잘못된 링크예요." }, 400)
 
-    // 호출한 사용자 권한으로 접근 → RLS 적용(자기 학원 교재만 읽힘)
-    const supabase = createClient(
+    // 관리자 권한 클라이언트(RLS 우회). 접근 통제는 "유효한 토큰"으로만.
+    const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     )
 
-    const { data: mat, error: matErr } = await supabase
-      .from("materials")
-      .select("id, title, storage_path, file_type")
-      .eq("id", material_id)
-      .single()
-    if (matErr || !mat || !mat.storage_path) {
-      return json({ error: "교재를 찾을 수 없어요(권한 또는 파일 확인)." }, 403)
-    }
+    const { data: link } = await admin
+      .from("share_links").select("material_id").eq("token", token).single()
+    if (!link) return json({ error: "유효하지 않은 링크예요." }, 404)
+
+    const { data: mat } = await admin
+      .from("materials").select("id, title, storage_path").eq("id", link.material_id).single()
+    if (!mat || !mat.storage_path) return json({ error: "교재를 찾을 수 없어요." }, 404)
 
     // 재출제(previous)면 교재 없이 직전 문항의 변형을 만든다. 첫 출제면 교재 이미지로.
     let content: any[]
     if (previous && previous.length) {
       content = [{ type: "text", text: PROMPT + "\n\n" + VARIANT + "\n\n직전 문항(JSON):\n" + JSON.stringify(previous) }]
     } else {
-      const { data: file, error: dlErr } = await supabase.storage
+      const { data: file, error: dlErr } = await admin.storage
         .from("materials").download(mat.storage_path)
       if (dlErr || !file) return json({ error: "교재 파일을 불러오지 못했어요." }, 500)
       const base64 = encodeBase64(new Uint8Array(await file.arrayBuffer()))
@@ -122,7 +118,7 @@ Deno.serve(async (req: Request) => {
 
     const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! })
     const msg = await anthropic.messages.create({
-      model: "claude-sonnet-4-6", // 수학 정확도 위해 Sonnet. 더 저렴하게 하려면 "claude-haiku-4-5".
+      model: "claude-sonnet-4-6",
       max_tokens: 3000,
       messages: [{ role: "user", content }],
       output_config: { format: { type: "json_schema", schema: SCHEMA } } as any,

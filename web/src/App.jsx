@@ -42,6 +42,9 @@ function App() {
   }, [])
 
   if (!hasKeys) return <Center><Title emoji="🔌" text="키가 비어있어요" sub=".env.local 을 확인해 주세요." /></Center>
+  // 학생 공유 링크(?s=토큰)로 들어오면 로그인 없이 바로 풀이 화면.
+  const shareToken = new URLSearchParams(window.location.search).get('s')
+  if (shareToken) return <Center><PublicSolve token={shareToken} /></Center>
   if (!ready) return <Center><Title emoji="⏳" text="확인 중…" /></Center>
   return <Center>{session ? <LoggedIn session={session} /> : <AuthForm />}</Center>
 }
@@ -166,6 +169,7 @@ function MaterialList({ academyId, userId }) {
   const [genErr, setGenErr] = useState('')
   const [quiz, setQuiz] = useState(null)      // { title, questions }
   const [solving, setSolving] = useState(null) // 학생처럼 풀어보는 교재
+  const [shareUrl, setShareUrl] = useState('')  // 방금 만든 학생 링크
 
   const load = async () => {
     const { data } = await supabase.from('materials')
@@ -229,6 +233,18 @@ function MaterialList({ academyId, userId }) {
     setQuiz({ title: data?.title, questions: data?.questions || [] })
   }
 
+  // 학생에게 보낼 풀이 링크 생성 + 클립보드 복사
+  const share = async (m) => {
+    setGenErr(''); setShareUrl('')
+    const token = (crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`).replace(/-/g, '')
+    const { error } = await supabase.from('share_links')
+      .insert({ token, material_id: m.id, created_by: userId, label: m.title })
+    if (error) { setGenErr(error.message); return }
+    const url = `${window.location.origin}/?s=${token}`
+    try { await navigator.clipboard.writeText(url) } catch (_) { /* noop */ }
+    setShareUrl(url)
+  }
+
   return (
     <div style={{ paddingLeft: 6, marginTop: 10, borderTop: '1px solid #eee', paddingTop: 10 }}>
       <div style={{ fontSize: 13, fontWeight: 700, color: '#555', marginBottom: 6 }}>📚 교재</div>
@@ -248,6 +264,11 @@ function MaterialList({ academyId, userId }) {
             onClick={() => setSolving(m)}>
             ▶ 풀어보기
           </button>
+          <button type="button"
+            style={{ ...btnGhost, padding: '6px 12px', fontSize: 13 }}
+            onClick={() => share(m)}>
+            📨 보내기
+          </button>
         </div>
       ))}
       {materials.length === 0 && <span style={{ ...muted, fontSize: 12 }}>교재 없음 · </span>}
@@ -264,6 +285,13 @@ function MaterialList({ academyId, userId }) {
       </form>
       {err && <p style={errBox}>{err}</p>}
       {genErr && <p style={errBox}>{genErr}</p>}
+      {shareUrl && (
+        <div style={{ marginTop: 8, fontSize: 12, background: '#eef7ff', border: '1px solid #cfe6ff', borderRadius: 8, padding: '8px 10px' }}>
+          ✅ 학생에게 보낼 링크가 <b>복사</b>됐어요. 카톡 등에 붙여넣어 보내세요:
+          <div style={{ marginTop: 4, wordBreak: 'break-all', color: '#2E75B6' }}>{shareUrl}</div>
+          <div style={{ marginTop: 4, color: '#999' }}>※ 지금은 이 컴퓨터(localhost)에서만 열려요. ⑪-4에서 인터넷에 올리면 다른 폰에서도 열립니다.</div>
+        </div>
+      )}
       {quiz && (
         <div style={{ marginTop: 10, background: '#faf9ff', border: '1px solid #e6e1fb', borderRadius: 10, padding: '12px 14px' }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#4b3bbd', marginBottom: 8 }}>
@@ -290,29 +318,35 @@ function MaterialList({ academyId, userId }) {
 }
 
 // 학생처럼 풀어보기 — 풀이 → 채점 → 8할 미달 시 비슷한 새 문제 재출제 → 통과
-function Solver({ material, onClose }) {
+function Solver({ material, token, onClose }) {
+  const isPublic = !!token
   const [round, setRound] = useState(1)
   const [questions, setQuestions] = useState([])
   const [answers, setAnswers] = useState({})   // 문제번호 → 학생 답
   const [phase, setPhase] = useState('loading') // loading | solving | graded
   const [graded, setGraded] = useState(null)
   const [err, setErr] = useState('')
+  const [title, setTitle] = useState(material?.title || '')
 
-  const fetchQuestions = async () => {
+  const fetchQuestions = async (prev) => {
     setPhase('loading'); setErr(''); setAnswers({}); setGraded(null)
-    const { data, error } = await supabase.functions.invoke('generate-questions', {
-      body: { material_id: material.id },
-    })
+    const base = isPublic ? { token } : { material_id: material.id }
+    const reqBody = (prev && prev.length) ? { ...base, previous: prev } : base
+    const { data, error } = await supabase.functions.invoke(
+      isPublic ? 'solve-link' : 'generate-questions',
+      { body: reqBody },
+    )
     if (error) {
       let msg = error.message || '문제를 불러오지 못했어요.'
       try { const b = await error.context.json(); if (b?.error) msg = b.error } catch (_) { /* noop */ }
       setErr(msg); setQuestions([]); setPhase('solving'); return
     }
     if (data?.error) { setErr(data.error); setQuestions([]); setPhase('solving'); return }
+    if (data?.title) setTitle(data.title)
     setQuestions(data.questions || [])
     setPhase('solving')
   }
-  useEffect(() => { fetchQuestions() }, [round]) // 회차가 바뀌면 새 문제로 재출제
+  useEffect(() => { fetchQuestions(null) }, []) // 첫 출제(교재 기반). 재출제는 retry()가 처리.
 
   const norm = (s) => (s ?? '').toString().trim().replace(/\s+/g, ' ').toLowerCase()
   const allAnswered = questions.length > 0 && questions.every((_, i) => (answers[i] ?? '') !== '')
@@ -327,6 +361,13 @@ function Solver({ material, onClose }) {
     setPhase('graded')
   }
 
+  // 재출제: 직전 문항의 구조는 그대로, 숫자만 바꾼 새 문제를 받는다.
+  const retry = () => {
+    const prev = questions.map((q) => ({ type: q.type, body: q.body, choices: q.choices }))
+    setRound((r) => r + 1)
+    fetchQuestions(prev)
+  }
+
   const tag = { fontSize: 11, fontWeight: 700, color: '#fff', background: '#6c5ce7', borderRadius: 12, padding: '3px 10px' }
 
   return (
@@ -334,10 +375,10 @@ function Solver({ material, onClose }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={tag}>수학</span>
-          <span style={{ fontSize: 13, fontWeight: 700 }}>{material.title}</span>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>{title || '수학 미션'}</span>
           <span style={{ fontSize: 11, color: '#999' }}>· 통과 80% · {round}회차</span>
         </div>
-        <button style={{ ...btnGhost, padding: '4px 10px', fontSize: 12 }} onClick={onClose}>닫기 ✕</button>
+        {onClose && <button style={{ ...btnGhost, padding: '4px 10px', fontSize: 12 }} onClick={onClose}>닫기 ✕</button>}
       </div>
 
       {err && <p style={errBox}>{err}</p>}
@@ -397,18 +438,30 @@ function Solver({ material, onClose }) {
           <div style={{ fontSize: 40 }}>🏆</div>
           <div style={{ fontSize: 18, fontWeight: 800, color: '#1a6b32' }}>미션 통과! ({graded.correctCount}/{graded.total})</div>
           <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>📨 (실제 서비스에선 부모님께 “통과했어요” 알림이 갑니다)</div>
-          <button style={{ ...btnGhost, marginTop: 10 }} onClick={onClose}>닫기</button>
+          {onClose && <button style={{ ...btnGhost, marginTop: 10 }} onClick={onClose}>닫기</button>}
         </div>
       ) : (
         <div style={{ textAlign: 'center', padding: '8px 0' }}>
           <div style={{ fontSize: 36 }}>📘</div>
           <div style={{ fontSize: 16, fontWeight: 800, color: '#6c5ce7' }}>조금만 더! ({graded.correctCount}/{graded.total})</div>
           <div style={{ fontSize: 12, color: '#888', margin: '4px 0 10px' }}>해설을 보고, 비슷한 새 문제로 다시 도전해요.</div>
-          <button style={{ ...btn, width: '100%', background: '#6c5ce7' }} onClick={() => setRound((r) => r + 1)}>
+          <button style={{ ...btn, width: '100%', background: '#6c5ce7' }} onClick={retry}>
             ✨ 비슷한 문제로 다시 도전
           </button>
         </div>
       ))}
+    </div>
+  )
+}
+
+// 학생이 공유 링크(?s=토큰)로 들어왔을 때 보는 전체 화면 (로그인 없음)
+function PublicSolve({ token }) {
+  return (
+    <div style={{ ...panel, width: 460 }}>
+      <div style={{ fontSize: 18, fontWeight: 800, color: '#1a1a1a' }}>📚 오늘의 수학 미션</div>
+      <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>UnoLock · 선생님이 보낸 문제예요</div>
+      <Solver token={token} />
+      <p style={foot}>UnoLock</p>
     </div>
   )
 }
