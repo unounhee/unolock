@@ -108,6 +108,27 @@ const VARIANT = `[재출제 — 숫자만 바꾸기]
   거의 그대로 두고(정확히 떨어지는 선에서만 살짝 바꿔) 만들어. 근사·범위·조건이 답이 되게는 절대 만들지 마.
 - 위 [정답 형식 — 절대 규칙]을 그대로 지켜. 교재는 보지 말고 아래 직전 문항 구조만 따라.`
 
+// ── 출제 결과 자동 검열 ─────────────────────────────────────────────
+// 프롬프트로도 막지만, 만약을 위해 코드로 한 번 더 거른다.
+// "답이 한 값으로 안 떨어지는" 불량 문항(범위·조건·부등호·θ·근사 등)을 버린다.
+const RANGE_SIGNS =
+  /[<>≤≥≦≧≈～~]|\\leq|\\geq|\\lt|\\gt|\\approx|\\theta|θ|또는|이상|이하|미만|초과|범위|조건|모두\s*고르/
+const looksBad = (s: unknown) => RANGE_SIGNS.test((s ?? "").toString())
+const isCleanNumber = (s: unknown) => {
+  const t = (s ?? "").toString().replace(/\$/g, "").replace(/\s/g, "")
+  return /^-?\d+(\.\d+)?$/.test(t) || /^-?\d+\/\d+$/.test(t)
+}
+const qnorm = (s: unknown) => (s ?? "").toString().trim().replace(/\s+/g, " ").toLowerCase()
+function isGoodQuestion(q: any): boolean {
+  if (!q || !q.body || q.correct_answer == null || q.correct_answer === "") return false
+  if (looksBad(q.correct_answer)) return false
+  if (q.type === "short") return isCleanNumber(q.correct_answer)        // 주관식: 정답은 깔끔한 숫자만
+  const choices = Array.isArray(q.choices) ? q.choices : []
+  if (choices.length < 2) return false                                  // 보기 부족 → 버림
+  if (choices.some((c: unknown) => looksBad(c))) return false           // 보기에 범위/조건/부등호 → 버림
+  return choices.some((c: unknown) => qnorm(c) === qnorm(q.correct_answer)) // 정답이 보기 안에 정확히 존재
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors })
   try {
@@ -158,21 +179,26 @@ Deno.serve(async (req: Request) => {
     }
 
     const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! })
-    const msg = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 3000,
-      messages: [{ role: "user", content }],
-      output_config: { format: { type: "json_schema", schema: SCHEMA } } as any,
-    })
-
-    const textBlock: any = msg.content.find((b: any) => b.type === "text")
-    let parsed: any
-    try {
-      parsed = JSON.parse(textBlock?.text ?? '{"questions":[]}')
-    } catch (_) {
-      return json({ error: "문제 생성 결과를 읽지 못했어요(형식 오류). 다시 시도해 주세요." }, 502)
+    // 한 번 생성해서 문항 배열을 받는다.
+    const runOnce = async (): Promise<any[]> => {
+      const msg = await anthropic.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 3000,
+        messages: [{ role: "user", content }],
+        output_config: { format: { type: "json_schema", schema: SCHEMA } } as any,
+      })
+      const tb: any = msg.content.find((b: any) => b.type === "text")
+      try { return JSON.parse(tb?.text ?? '{"questions":[]}').questions ?? [] }
+      catch (_) { return [] }
     }
-    return json({ title, questions: parsed.questions ?? [] })
+    // 자동 검열: 불량 문항을 버리고, 5개가 안 차면 한 번 더 생성해 채운다(최대 2회 → 비용 제한).
+    const good: any[] = []
+    for (let attempt = 0; attempt < 2 && good.length < 5; attempt++) {
+      const qs = await runOnce()
+      good.push(...qs.filter(isGoodQuestion))
+    }
+    if (!good.length) return json({ error: "깔끔하게 떨어지는 문제를 만들지 못했어요. 다시 시도해 주세요." }, 502)
+    return json({ title, questions: good.slice(0, 5) })
   } catch (e) {
     return json({ error: (e as Error)?.message ?? String(e) }, 500)
   }
