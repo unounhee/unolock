@@ -175,6 +175,9 @@ function ClassLesson({ classId, academyId, userId, classLabel }) {
   const [quiz, setQuiz] = useState(null)        // { title, questions }
   const [solving, setSolving] = useState(false) // 학생처럼 풀어보기
   const [shareUrl, setShareUrl] = useState('')
+  const [results, setResults] = useState(null)  // null=안 봄, []=푼 학생 없음, [..]=학생별 요약
+  const [resBusy, setResBusy] = useState(false)
+  const [resErr, setResErr] = useState('')
 
   // 이 반의 "가장 최근 묶음"과 그 안의 파일들을 불러온다.
   const load = async () => {
@@ -270,6 +273,37 @@ function ClassLesson({ classId, academyId, userId, classLabel }) {
     setShareUrl(url)
   }
 
+  // 이 반의 풀이 결과를 학생 이름으로 묶어 보여준다(누가·몇 회 만에·통과 여부). 다시 누르면 닫힘(토글).
+  const loadResults = async () => {
+    if (results) { setResults(null); return }
+    setResErr(''); setResBusy(true)
+    try {
+      // 이 반에 속한 모든 수업 묶음 → 그 묶음들의 풀이 기록을 가져온다(RLS가 자기 반만 허용).
+      const { data: batches } = await supabase.from('lesson_batches').select('id').eq('class_id', classId)
+      const ids = (batches || []).map((b) => b.id)
+      if (!ids.length) { setResults([]); return }
+      const { data: rows, error } = await supabase.from('attempts')
+        .select('student_name, attempt_no, passed, score, created_at')
+        .in('batch_id', ids).order('created_at', { ascending: true })
+      if (error) throw error
+      // 학생 이름으로 묶기: 시도 횟수·처음 통과한 회차·최고 점수
+      const byName = new Map()
+      for (const r of (rows || [])) {
+        const name = (r.student_name || '').trim() || '이름없음'
+        const g = byName.get(name) || { name, tries: 0, passedAt: null, best: 0 }
+        g.tries = Math.max(g.tries, r.attempt_no || 1)
+        g.best = Math.max(g.best, r.score || 0)
+        if (r.passed && g.passedAt == null) g.passedAt = r.attempt_no || 1
+        byName.set(name, g)
+      }
+      setResults(Array.from(byName.values()))
+    } catch (e) {
+      setResErr(e.message || '결과를 불러오지 못했어요.')
+    } finally {
+      setResBusy(false)
+    }
+  }
+
   return (
     <div style={{ paddingLeft: 2 }}>
       {/* 현재 수업(묶음) 파일들 */}
@@ -306,6 +340,12 @@ function ClassLesson({ classId, academyId, userId, classLabel }) {
           onClick={share}>
           📨 학생 링크
         </button>
+        <button type="button"
+          style={{ ...btnGhost, padding: '6px 12px', fontSize: 13, opacity: resBusy ? 0.5 : 1 }}
+          disabled={resBusy}
+          onClick={loadResults}>
+          {resBusy ? '불러오는 중…' : results ? '📊 결과 닫기' : '📊 풀이 결과'}
+        </button>
       </div>
 
       {/* 여러 장 업로드 = 새 수업 */}
@@ -329,6 +369,28 @@ function ClassLesson({ classId, academyId, userId, classLabel }) {
           ✅ 이 반 학생에게 보낼 링크가 <b>복사</b>됐어요. 카톡 등에 붙여넣어 보내세요:
           <div style={{ marginTop: 4, wordBreak: 'break-all', color: '#2E75B6' }}>{shareUrl}</div>
           <div style={{ marginTop: 4, color: '#999' }}>※ 링크 하나로 충분해요. 새 수업을 올리면 학생은 같은 링크에서 항상 오늘 수업을 풉니다.</div>
+        </div>
+      )}
+      {resErr && <p style={errBox}>{resErr}</p>}
+      {results && !resBusy && (
+        <div style={{ marginTop: 8, background: '#fff8ef', border: '1px solid #ffe1bd', borderRadius: 10, padding: '10px 12px' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#b9651a', marginBottom: 8 }}>
+            📊 이 반 풀이 결과 · {results.length}명
+          </div>
+          {results.length === 0 ? (
+            <div style={{ ...muted, fontSize: 12 }}>아직 푼 학생이 없어요. 학생 링크를 보내 보세요.</div>
+          ) : (
+            results.map((g, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '5px 0', borderTop: i ? '1px solid #f1e3cf' : 'none' }}>
+                <span>{g.passedAt ? '🟢' : '🔴'}</span>
+                <span style={{ fontWeight: 700, minWidth: 64 }}>{g.name}</span>
+                <span style={{ color: '#555' }}>
+                  {g.passedAt ? `${g.passedAt}회 만에 통과` : `${g.tries}회 시도 · 아직 통과 못함`}
+                </span>
+                <span style={{ marginLeft: 'auto', color: '#999', fontSize: 12 }}>최고 {g.best}점</span>
+              </div>
+            ))
+          )}
         </div>
       )}
       {quiz && (
