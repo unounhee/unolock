@@ -43,8 +43,12 @@ function App() {
 
   if (!hasKeys) return <Center><Title emoji="🔌" text="키가 비어있어요" sub=".env.local 을 확인해 주세요." /></Center>
   // 학생 공유 링크(?s=토큰)로 들어오면 로그인 없이 바로 풀이 화면.
-  const shareToken = new URLSearchParams(window.location.search).get('s')
+  const params = new URLSearchParams(window.location.search)
+  const shareToken = params.get('s')
   if (shareToken) return <Center><PublicSolve token={shareToken} /></Center>
+  // 학부모 통과증 링크(?cert=결과ID)로 들어오면 로그인 없이 통과 결과만 보여준다.
+  const certId = params.get('cert')
+  if (certId) return <Center><PassCertificate id={certId} /></Center>
   if (!ready) return <Center><Title emoji="⏳" text="확인 중…" /></Center>
   return <Center>{session ? <LoggedIn session={session} /> : <AuthForm />}</Center>
 }
@@ -428,6 +432,8 @@ function Solver({ batch, token, studentName, onClose }) {
   const [graded, setGraded] = useState(null)
   const [err, setErr] = useState('')
   const [title, setTitle] = useState('')
+  const [certId, setCertId] = useState(null)      // 통과 시 부모님께 보낼 결과ID(서버가 돌려줌)
+  const [certCopied, setCertCopied] = useState(false)
 
   const fetchQuestions = async (prev) => {
     setPhase('loading'); setErr(''); setAnswers({}); setGraded(null)
@@ -471,8 +477,16 @@ function Solver({ batch, token, studentName, onClose }) {
       }))
       supabase.functions.invoke('record-attempt', {
         body: { token, student_name: studentName, attempt_no: round, items },
-      }).catch(() => { /* noop */ })
+      }).then(({ data }) => { if (data?.attempt_id) setCertId(data.attempt_id) })
+        .catch(() => { /* noop */ })
     }
+  }
+
+  // 통과 결과를 부모님께 보낼 링크(?cert=결과ID)를 복사한다. (학생 풀이일 때만 certId 가 생김)
+  const shareCert = async () => {
+    const url = `${window.location.origin}/?cert=${certId}`
+    try { await navigator.clipboard.writeText(url) } catch (_) { /* noop */ }
+    setCertCopied(true)
   }
 
   // 재출제: 직전 문항의 구조는 그대로, 숫자만 바꾼 새 문제를 받는다.
@@ -551,7 +565,21 @@ function Solver({ batch, token, studentName, onClose }) {
         <div style={{ textAlign: 'center', padding: '8px 0' }}>
           <div style={{ fontSize: 40 }}>🏆</div>
           <div style={{ fontSize: 18, fontWeight: 800, color: '#1a6b32' }}>미션 통과! ({graded.correctCount}/{graded.total})</div>
-          <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>📨 (실제 서비스에선 부모님께 “통과했어요” 알림이 갑니다)</div>
+          {certId ? (
+            <div style={{ marginTop: 10 }}>
+              <button style={{ ...btn, width: '100%', background: '#1a6b32' }} onClick={shareCert}>
+                📩 부모님께 통과 소식 보내기
+              </button>
+              {certCopied && (
+                <div style={{ marginTop: 8, fontSize: 12, background: '#eafaf0', border: '1px solid #bfe6cd',
+                  borderRadius: 8, padding: '8px 10px', color: '#1a6b32', textAlign: 'left' }}>
+                  ✅ 통과 결과 링크가 <b>복사</b>됐어요. 부모님께 카톡 등으로 붙여넣어 보내세요.
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>잘했어요! 🎉</div>
+          )}
           {onClose && <button style={{ ...btnGhost, marginTop: 10 }} onClick={onClose}>닫기</button>}
         </div>
       ) : (
@@ -590,6 +618,65 @@ function PublicSolve({ token }) {
         </form>
       ) : (
         <Solver token={token} studentName={entered} />
+      )}
+      <p style={foot}>UnoLock</p>
+    </div>
+  )
+}
+
+// 학부모가 통과증 링크(?cert=결과ID)로 들어왔을 때 보는 화면 (로그인 없음)
+// 공개 함수 pass-cert 가 "이름·점수·회차·통과여부"만 돌려준다(문제/답은 안 보임).
+function PassCertificate({ id }) {
+  const [data, setData] = useState(null)
+  const [err, setErr] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let alive = true
+    supabase.functions.invoke('pass-cert', { body: { cert: id } })
+      .then(({ data, error }) => {
+        if (!alive) return
+        if (error) { setErr('결과를 불러오지 못했어요.'); return }
+        if (data?.error) { setErr(data.error); return }
+        setData(data)
+      })
+      .catch(() => { if (alive) setErr('결과를 불러오지 못했어요.') })
+      .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [id])
+
+  const name = (data?.student_name || '').trim() || '학생'
+  const subject = data?.class_name ? `${data.class_name} 수학 미션` : '오늘의 수학 미션'
+  const when = data?.created_at ? new Date(data.created_at).toLocaleDateString('ko-KR') : ''
+
+  return (
+    <div style={{ ...panel, width: 420, textAlign: 'center' }}>
+      <div style={{ fontSize: 12, color: '#999' }}>UnoLock · 통과 소식</div>
+      {loading ? (
+        <p style={{ ...muted, padding: 16 }}>⏳ 불러오는 중…</p>
+      ) : err ? (
+        <p style={errBox}>{err}</p>
+      ) : data?.passed ? (
+        <div style={{ padding: '10px 0' }}>
+          <div style={{ fontSize: 52 }}>🏆</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#1a6b32', marginTop: 6 }}>
+            {name} 학생, 통과했어요!
+          </div>
+          <div style={{ fontSize: 15, color: '#333', marginTop: 10, lineHeight: 1.6 }}>
+            {subject}을<br />
+            <b>{data.attempt_no}번 만에</b> 통과했어요{data.score != null ? <> · <b>{data.score}점</b></> : null}
+          </div>
+          {when && <div style={{ fontSize: 12, color: '#999', marginTop: 10 }}>{when}</div>}
+          <div style={{ marginTop: 14, fontSize: 12, color: '#888' }}>오늘도 잘 해냈어요 🎉</div>
+        </div>
+      ) : (
+        <div style={{ padding: '10px 0' }}>
+          <div style={{ fontSize: 44 }}>📘</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: '#6c5ce7', marginTop: 6 }}>
+            {name} 학생이 오늘도 열심히 풀었어요
+          </div>
+          <div style={{ fontSize: 13, color: '#666', marginTop: 8 }}>곧 통과 소식을 전해드릴게요!</div>
+        </div>
       )}
       <p style={foot}>UnoLock</p>
     </div>
