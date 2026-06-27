@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'supabase_client.dart';
+import 'class_lesson_page.dart';
 
 // 출제자 홈 (로그인 후). 내 학원별 반 목록을 두뇌에서 불러와 보여줌.
 // 다음 단계: 반을 누르면 "촬영·업로드 → AI 출제"로 들어감.
@@ -141,15 +142,15 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
         leading: const Icon(Icons.groups_outlined),
         title: Text(c['name'] ?? '(이름 없음)'),
         trailing: const Icon(Icons.chevron_right),
-        onTap: () {
-          // 다음 단계에서 여기에 "촬영·업로드 → AI 출제" 화면을 연결합니다.
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                  '"${c['name']}" 반 — 다음 단계에서 사진 촬영·업로드를 만듭니다.'),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ClassLessonPage(
+              academyId: academy['id'] as String,
+              classId: c['id'] as String,
+              className: c['name'] as String? ?? '(이름 없음)',
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }
