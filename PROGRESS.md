@@ -146,6 +146,7 @@
 - [x] 16-8 (S3b): **학생 미션 풀이 + 폰 잠금 틀 완성** — `0013_student_mission_read.sql`(승인 학생이 자기 반 lesson_batches/materials/storage 읽기 RLS: `is_approved_member`/`is_my_batch`/`can_read_material_path` SECURITY DEFINER) + `student_mission_page.dart`(최신 batch → `generate-questions` 재사용, 🔒startLockTask → 문제풀이(MathText) → 80% 채점 → 미달 시 previous로 재출제 루프 → 통과 시 🔓stopLockTask). 학생홈 승인 반 탭 → 미션. **잠금+풀이+채점+재출제+통과 기계장치 동작 확인.**
   - ⚠️ 알려진 한계: **AI 직접 생성 문항 품질 불량**(문제/정답/해설 불일치 → 채점·재출제 꼬임). 대표 결정대로 **이 부분은 "AI=단원분류 + 검증된 문항 DB에서 출제" 방식으로 교체 예정**(별도 작업, questions 형식 동일하면 앱·풀이화면 그대로). 지금은 틀만 확정.
   - **다음 후보: S3c(풀이 결과 student_id로 기록 → 교사 결과·학부모 통과알림) / 학부모 앱 / 문항 DB 방식 실험.**
+- [x] 16-9 (S3c-1): **계정 학생 결과 기록** — 새 함수 `supabase/functions/record-mission/index.ts`(Verify JWT ON: JWT로 student_id 식별 → 승인 학생 확인 → 서버 재채점 → attempts/questions/answers에 student_id로 저장). 앱 `student_mission_page.dart`가 채점 끝(통과/실패)마다 학생답 모아 호출(회차=attempt_no). 실제 폰에서 통과 시 attempts에 student_id 기록 확인. **다음 S3c-2: 학부모 통과 알림(학부모 계정·guardianship 자녀연결·통과만 보기).**
 - ⚠️ 연결 교훈: 이 노트북은 **유선 USB로 폰이 안 잡힘**(윈도우가 ADB 인터페이스를 안 만듦, `PID_6860` 단일기능). **무선(Wi-Fi) 디버깅으로 연결**해야 함. `adb`는 PATH에 없어 전체경로(`...\Android\Sdk\platform-tools\adb.exe`) 사용. 무선 연결: 폰 개발자옵션 → 무선 디버깅 → 페어링코드 → `adb pair ip:port code` → `adb connect ip:port`(포트 다름). IP/포트·코드는 매번 바뀜.
 - 다음(이번 작업 이후): 학생/학부모 앱 본격 제작 + DB 계정 기반 정리(7-3 권한, attempts.student_id, notifications.parent_id — 지금은 "이름만/계정없음"으로 우회 중). 별개로 **AI 출제 방식 실험**(AI=단원 분류만, 문제는 검증된 문항 DB에서 — questions 표 형식 같으면 출제 방식만 교체라 독립적, 점검 예정).
 

@@ -38,6 +38,8 @@ class _StudentMissionPageState extends State<StudentMissionPage> {
   int _correctCount = 0;
   bool _locked = false;
   bool _busy = false; // 재출제 중
+  int _attemptNo = 1; // 재출제 회차
+  final List<String> _given = []; // 각 문제에 학생이 낸 답(기록용)
 
   @override
   void initState() {
@@ -97,6 +99,7 @@ class _StudentMissionPageState extends State<StudentMissionPage> {
         _shortCtrl.clear();
         _answered = false;
         _correctCount = 0;
+        _given.clear();
         _busy = false;
         // previous가 있으면(재출제) 잠금 유지한 채 바로 풀이로.
         _phase = previous != null ? _Phase.solving : _Phase.intro;
@@ -139,16 +142,16 @@ class _StudentMissionPageState extends State<StudentMissionPage> {
 
   void _checkAnswer() {
     final correct = (_q['correct_answer'] ?? '').toString();
-    bool ok;
-    if (_isShort) {
-      ok = _norm(_shortCtrl.text) == _norm(correct);
-    } else {
-      final choices = List<dynamic>.from(_q['choices'] ?? const []);
-      ok = _selected != null &&
-          _selected! < choices.length &&
-          _norm(choices[_selected!].toString()) == _norm(correct);
-    }
+    final choices = List<dynamic>.from(_q['choices'] ?? const []);
+    // 학생이 낸 답(문자열) — 기록용
+    final given = _isShort
+        ? _shortCtrl.text.trim()
+        : (_selected != null && _selected! < choices.length
+            ? choices[_selected!].toString()
+            : '');
+    final ok = _norm(given).isNotEmpty && _norm(given) == _norm(correct);
     setState(() {
+      _given.add(given);
       _answered = true;
       _lastCorrect = ok;
       if (ok) _correctCount++;
@@ -171,6 +174,8 @@ class _StudentMissionPageState extends State<StudentMissionPage> {
   Future<void> _finish() async {
     final total = _questions.length;
     final pass = _correctCount * 5 >= total * 4; // 80%
+    // 서버에 결과 기록(실패해도 학생 화면은 막지 않음).
+    _recordMission(pass);
     if (pass) {
       await _unlock();
       setState(() => _phase = _Phase.passed);
@@ -179,8 +184,33 @@ class _StudentMissionPageState extends State<StudentMissionPage> {
     }
   }
 
-  // 미달 → 비슷한 새 문제로 다시(잠금 유지).
+  // 풀이 결과를 서버가 재채점해 student_id 로 기록.
+  Future<void> _recordMission(bool passed) async {
+    try {
+      final items = [
+        for (var i = 0; i < _questions.length; i++)
+          {
+            'type': _questions[i]['type'],
+            'body': _questions[i]['body'],
+            'choices': _questions[i]['choices'],
+            'correct_answer': _questions[i]['correct_answer'],
+            'explanation': _questions[i]['explanation'],
+            'student_answer': i < _given.length ? _given[i] : '',
+          }
+      ];
+      await supabase.functions.invoke('record-mission', body: {
+        'batch_id': _batchId,
+        'attempt_no': _attemptNo,
+        'items': items,
+      });
+    } catch (_) {
+      // 기록 실패는 무시(학생 경험 우선).
+    }
+  }
+
+  // 미달 → 비슷한 새 문제로 다시(잠금 유지). 회차 증가.
   Future<void> _retry() async {
+    _attemptNo++;
     await _loadMission(previous: _questions);
   }
 
