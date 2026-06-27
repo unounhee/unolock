@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'supabase_client.dart';
+import 'student_mission_page.dart';
 
 // 학생 홈: 반 코드로 신청 + 내가 신청/소속한 반들의 상태 보기.
 // 다음 단계(S3): 승인된 반의 "오늘 미션"으로 들어가기.
@@ -41,7 +42,7 @@ class _StudentHomePageState extends State<StudentHomePage> {
       final id = supabase.auth.currentUser!.id;
       final data = await supabase
           .from('memberships')
-          .select('status, classes(name)')
+          .select('class_id, status, classes(name)')
           .eq('student_id', id)
           .order('created_at');
       setState(() {
@@ -222,15 +223,24 @@ class _StudentHomePageState extends State<StudentHomePage> {
         leading: const Icon(Icons.groups_outlined),
         title: Text(className),
         subtitle: Text(_statusLabel(status)),
-        // S3에서: 승인된 반이면 "오늘 미션 풀기"로 들어가게 연결.
+        // 승인된 반이면 "오늘 미션 풀기"(잠금+풀이)로 들어간다.
         trailing: status == 'approved'
             ? const Icon(Icons.chevron_right)
             : null,
         onTap: status == 'approved'
             ? () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('다음 단계(S3)에서 오늘 미션을 여기 연결합니다.')),
+                final cls = m['classes'];
+                final className =
+                    (cls is Map ? cls['name'] as String? : null) ?? '미션';
+                final classId = m['class_id'] as String?;
+                if (classId == null) return;
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => StudentMissionPage(
+                      classId: classId,
+                      className: className,
+                    ),
+                  ),
                 );
               }
             : null,
