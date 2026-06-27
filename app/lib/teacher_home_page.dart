@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'supabase_client.dart';
 import 'class_lesson_page.dart';
+import 'class_members_page.dart';
 
-// 출제자 홈 (로그인 후). 내 학원별 반 목록을 두뇌에서 불러와 보여줌.
-// 다음 단계: 반을 누르면 "촬영·업로드 → AI 출제"로 들어감.
+// 출제자 홈 (로그인 후). 내 학원별 반 목록 + 각 반의 참가 코드/관리.
 class TeacherHomePage extends StatefulWidget {
   const TeacherHomePage({super.key});
 
@@ -14,7 +15,6 @@ class TeacherHomePage extends StatefulWidget {
 class _TeacherHomePageState extends State<TeacherHomePage> {
   bool _loading = true;
   String? _error;
-  // 학원 목록 (각 학원 안에 classes 배열)
   List<Map<String, dynamic>> _academies = [];
 
   @override
@@ -29,10 +29,9 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
       _error = null;
     });
     try {
-      // 학원 + 그 안의 반을 한 번에. RLS가 "내 것"만 걸러줌.
       final data = await supabase
           .from('academies')
-          .select('id, name, classes(id, name)')
+          .select('id, name, classes(id, name, join_code)')
           .order('created_at');
       setState(() {
         _academies = List<Map<String, dynamic>>.from(data);
@@ -69,9 +68,7 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
   }
 
   Widget _buildBody() {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
         child: Padding(
@@ -94,7 +91,6 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
         ),
       );
     }
-
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -116,11 +112,9 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
           children: [
             const Icon(Icons.school_outlined, size: 20),
             const SizedBox(width: 8),
-            Text(
-              academy['name'] ?? '(이름 없음)',
-              style:
-                  const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
+            Text(academy['name'] ?? '(이름 없음)',
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
@@ -131,25 +125,94 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
               style: TextStyle(color: Colors.grey)),
         )
       else
-        for (final c in classes) _classTile(academy, c),
+        for (final c in classes) _classCard(academy, c),
       const SizedBox(height: 8),
     ];
   }
 
-  Widget _classTile(Map<String, dynamic> academy, Map<String, dynamic> c) {
+  Widget _classCard(Map<String, dynamic> academy, Map<String, dynamic> c) {
+    final code = c['join_code'] as String? ?? '------';
+    final className = c['name'] as String? ?? '(이름 없음)';
     return Card(
-      child: ListTile(
-        leading: const Icon(Icons.groups_outlined),
-        title: Text(c['name'] ?? '(이름 없음)'),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => ClassLessonPage(
-              academyId: academy['id'] as String,
-              classId: c['id'] as String,
-              className: c['name'] as String? ?? '(이름 없음)',
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.groups_outlined),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(className,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w600)),
+                ),
+              ],
             ),
-          ),
+            const SizedBox(height: 8),
+            // 참가 코드 (학생에게 알려줄 코드)
+            Row(
+              children: [
+                const Text('참가 코드  ',
+                    style: TextStyle(color: Colors.grey, fontSize: 13)),
+                SelectableText(
+                  code,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
+                  ),
+                ),
+                IconButton(
+                  tooltip: '코드 복사',
+                  icon: const Icon(Icons.copy, size: 18),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: code));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('참가 코드를 복사했어요.')),
+                    );
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ClassLessonPage(
+                          academyId: academy['id'] as String,
+                          classId: c['id'] as String,
+                          className: className,
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.collections_outlined, size: 18),
+                    label: const Text('오늘 수업'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ClassMembersPage(
+                          classId: c['id'] as String,
+                          className: className,
+                          joinCode: code,
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.people_outline, size: 18),
+                    label: const Text('학생 관리'),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

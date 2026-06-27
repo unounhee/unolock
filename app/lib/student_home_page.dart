@@ -1,21 +1,124 @@
 import 'package:flutter/material.dart';
 import 'supabase_client.dart';
 
-// 학생 홈 (로그인 후). 지금은 인사 + 로그아웃만.
-// 다음 단계(S2~S4): 반 코드 입력 → 승인되면 → 오늘 미션 풀이(잠금).
-class StudentHomePage extends StatelessWidget {
+// 학생 홈: 반 코드로 신청 + 내가 신청/소속한 반들의 상태 보기.
+// 다음 단계(S3): 승인된 반의 "오늘 미션"으로 들어가기.
+class StudentHomePage extends StatefulWidget {
   const StudentHomePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final name =
-        supabase.auth.currentUser?.userMetadata?['full_name'] as String? ??
-            '학생';
+  State<StudentHomePage> createState() => _StudentHomePageState();
+}
 
+class _StudentHomePageState extends State<StudentHomePage> {
+  final _code = TextEditingController();
+  bool _loading = true;
+  bool _joining = false;
+  String? _error;
+  List<Map<String, dynamic>> _memberships = [];
+
+  String get _name =>
+      supabase.auth.currentUser?.userMetadata?['full_name'] as String? ?? '학생';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _code.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final id = supabase.auth.currentUser!.id;
+      final data = await supabase
+          .from('memberships')
+          .select('status, classes(name)')
+          .eq('student_id', id)
+          .order('created_at');
+      setState(() {
+        _memberships = List<Map<String, dynamic>>.from(data);
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = '$e';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _join() async {
+    final code = _code.text.trim();
+    if (code.isEmpty) return;
+    setState(() {
+      _joining = true;
+      _error = null;
+    });
+    try {
+      final res = await supabase
+          .rpc('join_class_by_code', params: {'p_code': code});
+      // 함수가 표를 돌려주므로 결과는 목록. 첫 줄에 반 이름/상태.
+      final rows = List<Map<String, dynamic>>.from(res as List);
+      final className =
+          rows.isNotEmpty ? rows.first['class_name'] as String? : null;
+      _code.clear();
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(className != null
+                ? '"$className" 반에 신청했어요. 선생님 승인을 기다려요.'
+                : '신청했어요.'),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _error = _prettyError('$e'));
+    } finally {
+      if (mounted) setState(() => _joining = false);
+    }
+  }
+
+  String _prettyError(String raw) {
+    if (raw.contains('no such class code') || raw.contains('반 코드')) {
+      return '반 코드를 찾을 수 없어요. 코드를 다시 확인해 주세요.';
+    }
+    return raw;
+  }
+
+  String _statusLabel(String? s) {
+    switch (s) {
+      case 'approved':
+        return '✅ 승인됨';
+      case 'pending':
+        return '⏳ 승인 대기';
+      case 'rejected':
+        return '❌ 거절됨';
+      default:
+        return s ?? '';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('학생'),
         actions: [
+          IconButton(
+            tooltip: '새로고침',
+            icon: const Icon(Icons.refresh),
+            onPressed: _loading ? null : _load,
+          ),
           IconButton(
             tooltip: '로그아웃',
             icon: const Icon(Icons.logout),
@@ -23,30 +126,114 @@ class StudentHomePage extends StatelessWidget {
           ),
         ],
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.backpack_outlined, size: 64),
-              const SizedBox(height: 16),
-              Text('$name님, 환영해요!',
-                  style: const TextStyle(fontSize: 22)),
-              const SizedBox(height: 24),
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Text(
-                    '🔑 반 코드 입력 → 선생님 승인 → 오늘 미션\n— 다음 단계에서 여기에 만듭니다.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 15, height: 1.5),
-                  ),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text('$_name님, 환영해요!',
+                style: const TextStyle(
+                    fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            // 반 코드 입력
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('반 코드로 들어가기',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    const Text('선생님이 알려준 6자리 코드를 입력하세요.',
+                        style: TextStyle(fontSize: 13, color: Colors.grey)),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _code,
+                            textCapitalization:
+                                TextCapitalization.characters,
+                            decoration: const InputDecoration(
+                              hintText: '예: K7M2QX',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        FilledButton(
+                          onPressed: _joining ? null : _join,
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 18, horizontal: 18),
+                          ),
+                          child: _joining
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2))
+                              : const Text('신청'),
+                        ),
+                      ],
+                    ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 8),
+                      Text('❌ $_error',
+                          style: const TextStyle(color: Colors.red)),
+                    ],
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 20),
+            const Text('내 반',
+                style:
+                    TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_memberships.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(8),
+                child: Text('아직 신청한 반이 없어요. 위에서 코드를 입력해 보세요.',
+                    style: TextStyle(color: Colors.grey)),
+              )
+            else
+              for (final m in _memberships) _membershipTile(m),
+          ],
         ),
+      ),
+    );
+  }
+
+  Widget _membershipTile(Map<String, dynamic> m) {
+    final cls = m['classes'];
+    final className =
+        (cls is Map ? cls['name'] as String? : null) ?? '(반)';
+    final status = m['status'] as String?;
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.groups_outlined),
+        title: Text(className),
+        subtitle: Text(_statusLabel(status)),
+        // S3에서: 승인된 반이면 "오늘 미션 풀기"로 들어가게 연결.
+        trailing: status == 'approved'
+            ? const Icon(Icons.chevron_right)
+            : null,
+        onTap: status == 'approved'
+            ? () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('다음 단계(S3)에서 오늘 미션을 여기 연결합니다.')),
+                );
+              }
+            : null,
       ),
     );
   }
