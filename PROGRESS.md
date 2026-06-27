@@ -136,6 +136,7 @@
 - [x] 16-1: 초미니 실험 앱 — 🔒/🔓 버튼 화면(`app/lib/main.dart`) + 네이티브 화면고정(`MainActivity.kt`, MethodChannel `unolock/lock` → `startLockTask()`/`stopLockTask()`). flutter analyze 통과.
 - [x] 16-2: 실제 폰(SM S948N, Android 16)에 설치·실행 → **버튼으로 화면 고정(다른 앱 차단) 작동 확인 성공!** 🎉
   - 지금은 **간이 잠금(Screen Pinning)** — 학생이 뒤로+최근앱 길게 누르면 풀림. 나중에 **완전 잠금(기기 관리자 모드)**으로 강화 가능(같은 원리 확장).
+- [x] 16-3: 앱을 **Supabase(두뇌)에 연결** — `supabase_flutter` 추가, `app/lib/supabase_client.dart`(init), 연결값은 `app/env.json`(gitignore, `--dart-define-from-file`로 주입, `env.example.json` 템플릿). 임시 "두뇌 연결 확인" 화면으로 **실제 폰에서 연결 성공 확인**. 잠금 실험은 `lock_test_page.dart`로 분리 보관. (출제자 키 publishable이라 공개 안전·RLS 보호) **다음: 출제자 로그인(웹 이메일 계정 재사용) → 반 목록 → 촬영·업로드 → AI 출제.**
 - ⚠️ 연결 교훈: 이 노트북은 **유선 USB로 폰이 안 잡힘**(윈도우가 ADB 인터페이스를 안 만듦, `PID_6860` 단일기능). **무선(Wi-Fi) 디버깅으로 연결**해야 함. `adb`는 PATH에 없어 전체경로(`...\Android\Sdk\platform-tools\adb.exe`) 사용. 무선 연결: 폰 개발자옵션 → 무선 디버깅 → 페어링코드 → `adb pair ip:port code` → `adb connect ip:port`(포트 다름). IP/포트·코드는 매번 바뀜.
 - 다음(이번 작업 이후): 학생/학부모 앱 본격 제작 + DB 계정 기반 정리(7-3 권한, attempts.student_id, notifications.parent_id — 지금은 "이름만/계정없음"으로 우회 중). 별개로 **AI 출제 방식 실험**(AI=단원 분류만, 문제는 검증된 문항 DB에서 — questions 표 형식 같으면 출제 방식만 교체라 독립적, 점검 예정).
 
