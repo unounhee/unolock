@@ -3,6 +3,7 @@ package com.unolock.unolock_app
 import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
+import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -61,6 +62,33 @@ class MainActivity : FlutterActivity() {
                         } catch (e: Exception) {
                             result.error("LIST_FAILED", e.message, null)
                         }
+                    }
+                    // 접근성 설정 화면 열기 (사용자가 직접 켜야 함)
+                    "openAccessibilitySettings" -> {
+                        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                        result.success(true)
+                    }
+                    // 우리 접근성 서비스가 켜져 있나?
+                    "isAccessibilityEnabled" -> {
+                        val expected = "$packageName/$packageName.BlockerService"
+                        val enabled = Settings.Secure.getString(
+                            contentResolver,
+                            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+                        ) ?: ""
+                        val on = enabled.split(':').any { it.equals(expected, true) }
+                        result.success(on)
+                    }
+                    // 막을 앱 1개 지정(실험용)
+                    "setBlockedPackage" -> {
+                        val pkg = call.argument<String>("package")
+                        getSharedPreferences("unolock_blocker", Context.MODE_PRIVATE)
+                            .edit().putString("blocked_package", pkg).apply()
+                        result.success(true)
+                    }
+                    "getBlockedPackage" -> {
+                        val pkg = getSharedPreferences("unolock_blocker", Context.MODE_PRIVATE)
+                            .getString("blocked_package", null)
+                        result.success(pkg)
                     }
                     else -> result.notImplemented()
                 }

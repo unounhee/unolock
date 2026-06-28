@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="blocker_accessibility_desc">허용하지 않은 앱을 열면 자동으로 막아 학습에 집중하도록 돕습니다.</string>
+</resources>
