@@ -147,6 +147,9 @@
   - ⚠️ 알려진 한계: **AI 직접 생성 문항 품질 불량**(문제/정답/해설 불일치 → 채점·재출제 꼬임). 대표 결정대로 **이 부분은 "AI=단원분류 + 검증된 문항 DB에서 출제" 방식으로 교체 예정**(별도 작업, questions 형식 동일하면 앱·풀이화면 그대로). 지금은 틀만 확정.
   - **다음 후보: S3c(풀이 결과 student_id로 기록 → 교사 결과·학부모 통과알림) / 학부모 앱 / 문항 DB 방식 실험.**
 - [x] 16-9 (S3c-1): **계정 학생 결과 기록** — 새 함수 `supabase/functions/record-mission/index.ts`(Verify JWT ON: JWT로 student_id 식별 → 승인 학생 확인 → 서버 재채점 → attempts/questions/answers에 student_id로 저장). 앱 `student_mission_page.dart`가 채점 끝(통과/실패)마다 학생답 모아 호출(회차=attempt_no). 실제 폰에서 통과 시 attempts에 student_id 기록 확인. **다음 S3c-2: 학부모 통과 알림(학부모 계정·guardianship 자녀연결·통과만 보기).**
+- [x] 16-10 (S3c-2): **학부모 통과 알림 (정보 비대칭 완결)** — `0014_parent_link.sql`(profiles.link_code 자동부여=자녀 연결코드, `link_child_by_code` RPC, `is_my_child` SECURITY DEFINER, guardianships/profiles/attempts RLS: 부모는 자녀의 **passed=true만** 읽음). 앱: 진입에 학부모 추가, `parent_auth_page.dart`(가입/로그인 role=parent), `parent_home_page.dart`(코드로 자녀 연결 + 통과 소식만), main RoleRouter parent 분기, 학생 홈에 "부모님 연결 코드" 표시. 실제 폰에서 학부모 가입→자녀 연결→통과 소식 확인.
+  - ⚠️ 교훈(둘 다 해결): 함수 반환 table 칼럼명이 테이블 칼럼과 겹치면 `42702 ambiguous` → 반환명 `child_id/child_name`로 변경. guardianships→profiles FK 2개(parent_id/student_id)라 임베드 모호(`PGRST201`) → `profiles!guardianships_student_id_fkey(...)`로 명시.
+  - **정보 비대칭 루프 완결: 출제→풀이(잠금)→기록(student_id)→학부모 통과만. 남은 후보: 문항 DB 방식(품질), 보상 타이머/허용앱(2차 잠금), 교사 결과 화면 앱.**
 - ⚠️ 연결 교훈: 이 노트북은 **유선 USB로 폰이 안 잡힘**(윈도우가 ADB 인터페이스를 안 만듦, `PID_6860` 단일기능). **무선(Wi-Fi) 디버깅으로 연결**해야 함. `adb`는 PATH에 없어 전체경로(`...\Android\Sdk\platform-tools\adb.exe`) 사용. 무선 연결: 폰 개발자옵션 → 무선 디버깅 → 페어링코드 → `adb pair ip:port code` → `adb connect ip:port`(포트 다름). IP/포트·코드는 매번 바뀜.
 - 다음(이번 작업 이후): 학생/학부모 앱 본격 제작 + DB 계정 기반 정리(7-3 권한, attempts.student_id, notifications.parent_id — 지금은 "이름만/계정없음"으로 우회 중). 별개로 **AI 출제 방식 실험**(AI=단원 분류만, 문제는 검증된 문항 DB에서 — questions 표 형식 같으면 출제 방식만 교체라 독립적, 점검 예정).
 

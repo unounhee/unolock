@@ -4,6 +4,7 @@ import 'supabase_client.dart';
 import 'landing_page.dart';
 import 'teacher_home_page.dart';
 import 'student_home_page.dart';
+import 'parent_home_page.dart';
 
 Future<void> main() async {
   // 앱이 화면을 그리기 전에 두뇌(Supabase) 연결을 먼저 켭니다.
@@ -118,8 +119,10 @@ class _RoleRouterState extends State<RoleRouter> {
         return const StudentHomePage();
       case 'teacher':
         return const TeacherHomePage();
+      case 'parent':
+        return const ParentHomePage();
       default:
-        // parent 등 아직 안 만든 역할
+        // 아직 안 만든 역할
         return Scaffold(
           appBar: AppBar(title: const Text('UnoLock')),
           body: Center(

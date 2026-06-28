@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'login_page.dart';
 import 'student_auth_page.dart';
+import 'parent_auth_page.dart';
 
 // 첫 화면(로그인 안 된 상태): 누구인지 고르기.
 // 학부모는 다음 단계에서 추가.
@@ -30,6 +31,16 @@ class LandingPage extends StatelessWidget {
                 subtitle: '미션 풀고 폰 열기',
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const StudentAuthPage()),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _bigButton(
+                context,
+                icon: Icons.family_restroom,
+                label: '학부모',
+                subtitle: '자녀 통과 소식 보기',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ParentAuthPage()),
                 ),
               ),
               const SizedBox(height: 16),

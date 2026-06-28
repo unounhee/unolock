@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'supabase_client.dart';
 import 'student_mission_page.dart';
 
@@ -16,6 +17,7 @@ class _StudentHomePageState extends State<StudentHomePage> {
   bool _loading = true;
   bool _joining = false;
   String? _error;
+  String? _linkCode; // 부모님 연결 코드
   List<Map<String, dynamic>> _memberships = [];
 
   String get _name =>
@@ -45,8 +47,21 @@ class _StudentHomePageState extends State<StudentHomePage> {
           .select('class_id, status, classes(name)')
           .eq('student_id', id)
           .order('created_at');
+      // 부모님 연결 코드(내 프로필)
+      String? linkCode;
+      try {
+        final prof = await supabase
+            .from('profiles')
+            .select('link_code')
+            .eq('id', id)
+            .single();
+        linkCode = prof['link_code'] as String?;
+      } catch (_) {
+        linkCode = null; // 0014 SQL 전이면 없을 수 있음
+      }
       setState(() {
         _memberships = List<Map<String, dynamic>>.from(data);
+        _linkCode = linkCode;
         _loading = false;
       });
     } catch (e) {
@@ -136,6 +151,39 @@ class _StudentHomePageState extends State<StudentHomePage> {
                 style: const TextStyle(
                     fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
+            // 부모님 연결 코드
+            if (_linkCode != null)
+              Card(
+                color: Theme.of(context).colorScheme.secondaryContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.family_restroom, size: 20),
+                      const SizedBox(width: 8),
+                      const Text('부모님 연결 코드  ',
+                          style: TextStyle(fontSize: 13)),
+                      SelectableText(_linkCode!,
+                          style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 2)),
+                      const Spacer(),
+                      IconButton(
+                        tooltip: '복사',
+                        icon: const Icon(Icons.copy, size: 18),
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: _linkCode!));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('연결 코드를 복사했어요.')),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (_linkCode != null) const SizedBox(height: 16),
             // 반 코드 입력
             Card(
               child: Padding(
