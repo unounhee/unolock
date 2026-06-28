@@ -150,6 +150,8 @@
 - [x] 16-10 (S3c-2): **학부모 통과 알림 (정보 비대칭 완결)** — `0014_parent_link.sql`(profiles.link_code 자동부여=자녀 연결코드, `link_child_by_code` RPC, `is_my_child` SECURITY DEFINER, guardianships/profiles/attempts RLS: 부모는 자녀의 **passed=true만** 읽음). 앱: 진입에 학부모 추가, `parent_auth_page.dart`(가입/로그인 role=parent), `parent_home_page.dart`(코드로 자녀 연결 + 통과 소식만), main RoleRouter parent 분기, 학생 홈에 "부모님 연결 코드" 표시. 실제 폰에서 학부모 가입→자녀 연결→통과 소식 확인.
   - ⚠️ 교훈(둘 다 해결): 함수 반환 table 칼럼명이 테이블 칼럼과 겹치면 `42702 ambiguous` → 반환명 `child_id/child_name`로 변경. guardianships→profiles FK 2개(parent_id/student_id)라 임베드 모호(`PGRST201`) → `profiles!guardianships_student_id_fkey(...)`로 명시.
   - **정보 비대칭 루프 완결: 출제→풀이(잠금)→기록(student_id)→학부모 통과만. 남은 후보: 문항 DB 방식(품질), 보상 타이머/허용앱(2차 잠금), 교사 결과 화면 앱.**
+- [진행중] ⑰ 2차 폰 제어(허용 앱/완전잠금) 실험 — 방향 결정: **접근성 서비스**(B2C, 공장초기화 불필요)로 가고 Device Owner는 전용폰 옵션(나중). 삭제 방지는 기기관리자+접근성 자기방어+부모PIN로. 허용앱은 **자녀 폰 실제 앱 목록에서 부모가 선택**(Option1).
+  - [x] 17-1 (실험): **깔린 앱 목록 읽기** — `MainActivity.kt` listApps(런처 인텐트 query, 이름/패키지) + 매니페스트 `<queries>` MAIN/LAUNCHER, `app_list_page.dart`(학생홈 임시 버튼). 실제 폰에서 앱 목록 표시 확인. **다음 17-2: 접근성 서비스로 "허용 안 한 앱 열면 막기".**
 - ⚠️ 연결 교훈: 이 노트북은 **유선 USB로 폰이 안 잡힘**(윈도우가 ADB 인터페이스를 안 만듦, `PID_6860` 단일기능). **무선(Wi-Fi) 디버깅으로 연결**해야 함. `adb`는 PATH에 없어 전체경로(`...\Android\Sdk\platform-tools\adb.exe`) 사용. 무선 연결: 폰 개발자옵션 → 무선 디버깅 → 페어링코드 → `adb pair ip:port code` → `adb connect ip:port`(포트 다름). IP/포트·코드는 매번 바뀜.
 - 다음(이번 작업 이후): 학생/학부모 앱 본격 제작 + DB 계정 기반 정리(7-3 권한, attempts.student_id, notifications.parent_id — 지금은 "이름만/계정없음"으로 우회 중). 별개로 **AI 출제 방식 실험**(AI=단원 분류만, 문제는 검증된 문항 DB에서 — questions 표 형식 같으면 출제 방식만 교체라 독립적, 점검 예정).
 

@@ -41,5 +41,10 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- 실행 가능한(런처 아이콘 있는) 앱 목록을 보기 위함 (허용 앱 선택용) -->
+        <intent>
+            <action android:name="android.intent.action.MAIN"/>
+            <category android:name="android.intent.category.LAUNCHER"/>
+        </intent>
     </queries>
 </manifest>

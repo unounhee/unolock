@@ -2,6 +2,7 @@ package com.unolock.unolock_app
 
 import android.app.ActivityManager
 import android.content.Context
+import android.content.Intent
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -39,6 +40,27 @@ class MainActivity : FlutterActivity() {
                         val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
                         val locked = am.lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE
                         result.success(locked)
+                    }
+                    // 폰에 깔린 "실행 가능한 앱"(런처 아이콘 있는 것) 목록
+                    "listApps" -> {
+                        try {
+                            val pm = packageManager
+                            val intent = Intent(Intent.ACTION_MAIN, null)
+                                .addCategory(Intent.CATEGORY_LAUNCHER)
+                            val acts = pm.queryIntentActivities(intent, 0)
+                            val apps = acts
+                                .map { ri ->
+                                    mapOf(
+                                        "name" to ri.loadLabel(pm).toString(),
+                                        "package" to ri.activityInfo.packageName,
+                                    )
+                                }
+                                .distinctBy { it["package"] }
+                                .sortedBy { (it["name"] ?: "").lowercase() }
+                            result.success(apps)
+                        } catch (e: Exception) {
+                            result.error("LIST_FAILED", e.message, null)
+                        }
                     }
                     else -> result.notImplemented()
                 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'supabase_client.dart';
 import 'student_mission_page.dart';
+import 'app_list_page.dart';
 
 // 학생 홈: 반 코드로 신청 + 내가 신청/소속한 반들의 상태 보기.
 // 다음 단계(S3): 승인된 반의 "오늘 미션"으로 들어가기.
@@ -255,6 +256,15 @@ class _StudentHomePageState extends State<StudentHomePage> {
               )
             else
               for (final m in _memberships) _membershipTile(m),
+            const SizedBox(height: 24),
+            // 임시 실험: 이 폰에 깔린 앱 목록 보기 (허용 앱 기능 토대)
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AppListPage()),
+              ),
+              icon: const Icon(Icons.apps),
+              label: const Text('📱 깔린 앱 목록 (실험)'),
+            ),
           ],
         ),
       ),
