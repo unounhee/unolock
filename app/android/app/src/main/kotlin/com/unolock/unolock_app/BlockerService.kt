@@ -33,6 +33,10 @@ class BlockerService : AccessibilityService() {
         val prefs = getSharedPreferences("unolock_blocker", Context.MODE_PRIVATE)
         if (!prefs.getBoolean("block_mode", false)) return
 
+        // 보상 시간 중이면 전부 통과(자유 시간). 시각이 지나면 다시 차단.
+        val rewardUntil = prefs.getLong("reward_until", 0L)
+        if (System.currentTimeMillis() < rewardUntil) return
+
         val pkg = event.packageName?.toString() ?: return
         if (pkg == packageName) return            // 우리 앱
         if (pkg == homePackage) return            // 홈 화면

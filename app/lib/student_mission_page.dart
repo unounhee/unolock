@@ -178,6 +178,10 @@ class _StudentMissionPageState extends State<StudentMissionPage> {
     _recordMission(pass);
     if (pass) {
       await _unlock();
+      // 통과 보상: 30분간 자유 시간(차단 모드일 때 풀림)
+      try {
+        await _lockChannel.invokeMethod('startReward', {'minutes': 30});
+      } catch (_) {}
       setState(() => _phase = _Phase.passed);
     } else {
       setState(() => _phase = _Phase.failed);

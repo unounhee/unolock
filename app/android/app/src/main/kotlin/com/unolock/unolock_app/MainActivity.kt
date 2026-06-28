@@ -103,6 +103,27 @@ class MainActivity : FlutterActivity() {
                         val list = if (s.isEmpty()) emptyList() else s.split(",")
                         result.success(list)
                     }
+                    // 보상 시간 시작: 지금부터 minutes분 동안 전부 자유
+                    "startReward" -> {
+                        val minutes = call.argument<Int>("minutes") ?: 0
+                        val until = System.currentTimeMillis() + minutes * 60000L
+                        getSharedPreferences("unolock_blocker", Context.MODE_PRIVATE)
+                            .edit().putLong("reward_until", until).apply()
+                        result.success(until)
+                    }
+                    // 남은 보상 시간(ms)
+                    "getRewardRemaining" -> {
+                        val until = getSharedPreferences("unolock_blocker", Context.MODE_PRIVATE)
+                            .getLong("reward_until", 0L)
+                        val remain = (until - System.currentTimeMillis()).coerceAtLeast(0)
+                        result.success(remain)
+                    }
+                    // 보상 시간 즉시 종료
+                    "endReward" -> {
+                        getSharedPreferences("unolock_blocker", Context.MODE_PRIVATE)
+                            .edit().putLong("reward_until", 0L).apply()
+                        result.success(true)
+                    }
                     else -> result.notImplemented()
                 }
             }

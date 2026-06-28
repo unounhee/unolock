@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -19,18 +20,46 @@ class _AppBlockPageState extends State<AppBlockPage>
   bool _blockMode = false;
   Set<String> _allowed = {};
   List<Map<String, dynamic>> _apps = [];
+  int _rewardMs = 0;
+  Timer? _ticker;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _load();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _pollReward());
   }
 
   @override
   void dispose() {
+    _ticker?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  Future<void> _pollReward() async {
+    try {
+      final ms = await _channel.invokeMethod('getRewardRemaining') as int;
+      if (mounted && ms != _rewardMs) setState(() => _rewardMs = ms);
+    } catch (_) {}
+  }
+
+  Future<void> _startReward(int minutes) async {
+    await _channel.invokeMethod('startReward', {'minutes': minutes});
+    _pollReward();
+  }
+
+  Future<void> _endReward() async {
+    await _channel.invokeMethod('endReward');
+    _pollReward();
+  }
+
+  String _fmt(int ms) {
+    final s = ms ~/ 1000;
+    final m = s ~/ 60;
+    final ss = (s % 60).toString().padLeft(2, '0');
+    return '$m:$ss';
   }
 
   @override
@@ -108,6 +137,8 @@ class _AppBlockPageState extends State<AppBlockPage>
                 _statusCard(),
                 const SizedBox(height: 12),
                 _blockModeCard(),
+                const SizedBox(height: 12),
+                _rewardCard(),
                 const SizedBox(height: 16),
                 Text('허용할 앱 (${_allowed.length}개 선택됨)',
                     style: const TextStyle(
@@ -172,6 +203,56 @@ class _AppBlockPageState extends State<AppBlockPage>
         onChanged: _accessibilityOn ? _toggleBlockMode : null,
         secondary: Icon(_blockMode ? Icons.lock : Icons.lock_open,
             color: _blockMode ? Colors.redAccent : null),
+      ),
+    );
+  }
+
+  Widget _rewardCard() {
+    final active = _rewardMs > 0;
+    return Card(
+      color: active ? Colors.indigo.withValues(alpha: 0.10) : null,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(active ? Icons.timer : Icons.timer_outlined,
+                    color: active ? Colors.indigo : null),
+                const SizedBox(width: 8),
+                Text(
+                  active ? '자유 시간  ${_fmt(_rewardMs)}' : '보상 시간 (테스트)',
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              active
+                  ? '지금은 차단이 풀려 모든 앱을 쓸 수 있어요. 시간이 끝나면 다시 잠겨요.'
+                  : '통과하면 받는 자유 시간을 흉내내는 버튼이에요.',
+              style: const TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                FilledButton.icon(
+                  onPressed: () => _startReward(1),
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('보상 1분 받기'),
+                ),
+                const SizedBox(width: 8),
+                if (active)
+                  OutlinedButton(
+                    onPressed: _endReward,
+                    child: const Text('지금 종료'),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
