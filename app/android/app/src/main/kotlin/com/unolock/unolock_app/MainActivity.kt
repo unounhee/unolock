@@ -78,17 +78,30 @@ class MainActivity : FlutterActivity() {
                         val on = enabled.split(':').any { it.equals(expected, true) }
                         result.success(on)
                     }
-                    // 막을 앱 1개 지정(실험용)
-                    "setBlockedPackage" -> {
-                        val pkg = call.argument<String>("package")
+                    // 차단 모드 켜기/끄기 (켜면 "허용 앱만 통과")
+                    "setBlockMode" -> {
+                        val on = call.argument<Boolean>("on") ?: false
                         getSharedPreferences("unolock_blocker", Context.MODE_PRIVATE)
-                            .edit().putString("blocked_package", pkg).apply()
+                            .edit().putBoolean("block_mode", on).apply()
                         result.success(true)
                     }
-                    "getBlockedPackage" -> {
-                        val pkg = getSharedPreferences("unolock_blocker", Context.MODE_PRIVATE)
-                            .getString("blocked_package", null)
-                        result.success(pkg)
+                    "getBlockMode" -> {
+                        val on = getSharedPreferences("unolock_blocker", Context.MODE_PRIVATE)
+                            .getBoolean("block_mode", false)
+                        result.success(on)
+                    }
+                    // 허용 앱 목록 저장/조회 (이 앱들만 통과)
+                    "setAllowedPackages" -> {
+                        val list = call.argument<List<String>>("packages") ?: emptyList()
+                        getSharedPreferences("unolock_blocker", Context.MODE_PRIVATE)
+                            .edit().putString("allowed_packages", list.joinToString(",")).apply()
+                        result.success(true)
+                    }
+                    "getAllowedPackages" -> {
+                        val s = getSharedPreferences("unolock_blocker", Context.MODE_PRIVATE)
+                            .getString("allowed_packages", "") ?: ""
+                        val list = if (s.isEmpty()) emptyList() else s.split(",")
+                        result.success(list)
                     }
                     else -> result.notImplemented()
                 }
