@@ -124,6 +124,33 @@ class MainActivity : FlutterActivity() {
                             .edit().putLong("reward_until", 0L).apply()
                         result.success(true)
                     }
+                    // 보상 시간을 "절대 시각(epoch ms)"으로 지정.
+                    // 모든 미션 완료 → 오늘 잠금시각까지 자유 줄 때 사용.
+                    "startRewardUntil" -> {
+                        val until = (call.argument<Any>("until") as? Number)?.toLong() ?: 0L
+                        getSharedPreferences("unolock_blocker", Context.MODE_PRIVATE)
+                            .edit().putLong("reward_until", until).apply()
+                        result.success(until)
+                    }
+                    // 매일 잠금 시각(hour:minute) 저장 — 부모 설정의 "로컬 사본".
+                    // 인터넷이 없어도 폰은 이 로컬 값으로 잠긴다. (서버 동기화는 17-7)
+                    "setLockTime" -> {
+                        val hour = call.argument<Int>("hour") ?: -1
+                        val minute = call.argument<Int>("minute") ?: 0
+                        getSharedPreferences("unolock_blocker", Context.MODE_PRIVATE)
+                            .edit().putInt("lock_hour", hour).putInt("lock_minute", minute)
+                            .apply()
+                        result.success(true)
+                    }
+                    "getLockTime" -> {
+                        val p = getSharedPreferences("unolock_blocker", Context.MODE_PRIVATE)
+                        result.success(
+                            mapOf(
+                                "hour" to p.getInt("lock_hour", -1),  // -1 = 아직 설정 안 함
+                                "minute" to p.getInt("lock_minute", 0),
+                            )
+                        )
+                    }
                     else -> result.notImplemented()
                 }
             }

@@ -21,6 +21,8 @@ class _AppBlockPageState extends State<AppBlockPage>
   Set<String> _allowed = {};
   List<Map<String, dynamic>> _apps = [];
   int _rewardMs = 0;
+  int _lockHour = -1; // 매일 잠금 시각. -1 = 아직 설정 안 함.
+  int _lockMinute = 0;
   Timer? _ticker;
 
   @override
@@ -78,11 +80,15 @@ class _AppBlockPageState extends State<AppBlockPage>
       final apps = (raw as List)
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
+      final lt = await _channel.invokeMethod('getLockTime');
+      final lock = Map<String, dynamic>.from(lt as Map);
       setState(() {
         _accessibilityOn = on;
         _blockMode = mode;
         _allowed = allowed;
         _apps = apps;
+        _lockHour = (lock['hour'] as num?)?.toInt() ?? -1;
+        _lockMinute = (lock['minute'] as num?)?.toInt() ?? 0;
         _loading = false;
       });
     } catch (e) {
@@ -104,6 +110,49 @@ class _AppBlockPageState extends State<AppBlockPage>
   Future<void> _toggleBlockMode(bool on) async {
     await _channel.invokeMethod('setBlockMode', {'on': on});
     setState(() => _blockMode = on);
+  }
+
+  // 매일 잠금 시각 고르기(지금은 부모 대역으로 학생 폰에서 직접 선택).
+  Future<void> _pickLockTime() async {
+    final init = _lockHour >= 0
+        ? TimeOfDay(hour: _lockHour, minute: _lockMinute)
+        : const TimeOfDay(hour: 23, minute: 0);
+    final picked = await showTimePicker(context: context, initialTime: init);
+    if (picked == null) return;
+    await _channel.invokeMethod(
+        'setLockTime', {'hour': picked.hour, 'minute': picked.minute});
+    setState(() {
+      _lockHour = picked.hour;
+      _lockMinute = picked.minute;
+    });
+  }
+
+  // 테스트: "오늘 모든 미션 완료" 가정 → 오늘 잠금 시각까지 자유.
+  // (17-6b에서 미션 통과 시 자동 호출되게 연결. 지금은 손으로 확인.)
+  Future<void> _freeUntilLockTime() async {
+    if (_lockHour < 0) return;
+    final now = DateTime.now();
+    final target =
+        DateTime(now.year, now.month, now.day, _lockHour, _lockMinute);
+    if (!target.isAfter(now)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('잠금 시각이 이미 지났어요. 미래 시각으로 정해야 자유 시간이 생겨요.')),
+        );
+      }
+      return;
+    }
+    await _channel.invokeMethod(
+        'startRewardUntil', {'until': target.millisecondsSinceEpoch});
+    _pollReward();
+  }
+
+  String _lockTimeLabel() {
+    if (_lockHour < 0) return '아직 설정 안 함';
+    final h = _lockHour.toString().padLeft(2, '0');
+    final m = _lockMinute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 
   Future<void> _toggleAllowed(String pkg, bool allow) async {
@@ -137,6 +186,8 @@ class _AppBlockPageState extends State<AppBlockPage>
                 _statusCard(),
                 const SizedBox(height: 12),
                 _blockModeCard(),
+                const SizedBox(height: 12),
+                _lockTimeCard(),
                 const SizedBox(height: 12),
                 _rewardCard(),
                 const SizedBox(height: 16),
@@ -203,6 +254,60 @@ class _AppBlockPageState extends State<AppBlockPage>
         onChanged: _accessibilityOn ? _toggleBlockMode : null,
         secondary: Icon(_blockMode ? Icons.lock : Icons.lock_open,
             color: _blockMode ? Colors.redAccent : null),
+      ),
+    );
+  }
+
+  // 매일 잠금 시각 카드 — "모든 미션 완료 시 이 시각까지 자유".
+  // (부모가 정하는 값. 지금은 학생 폰에서 직접 고르고, 17-7에서 서버 동기화.)
+  Widget _lockTimeCard() {
+    final set = _lockHour >= 0;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.nightlight_round),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text('매일 잠금 시각',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+                Text(_lockTimeLabel(),
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: set ? Colors.indigo : Colors.grey)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '오늘 미션을 모두 통과하면 이 시각까지 자유롭게 쓰고, 그 시각에 다시 잠겨요.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _pickLockTime,
+                  icon: const Icon(Icons.schedule),
+                  label: Text(set ? '시각 바꾸기' : '시각 정하기'),
+                ),
+                const SizedBox(width: 8),
+                if (set)
+                  FilledButton.icon(
+                    onPressed: _freeUntilLockTime,
+                    icon: const Icon(Icons.celebration),
+                    label: const Text('모든 미션 완료 (테스트)'),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
