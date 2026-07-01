@@ -1,7 +1,7 @@
 # UnoLock — 현재 진행 상황 (이어서 작업용)
 
 > 데스크탑 → 노트북으로 작업을 이어가기 위해 작성. 노트북에서 저장소를 받으면 이 파일부터 읽으세요.
-> 마지막 업데이트: 2026-07-01 — ⑰ **17-6 완료 ✓ "모든 미션 완료 → 잠금시각까지 자유"** (17-6a 로컬 기계장치 + 17-6b 진짜 트리거). record-mission이 `all_missions_done` 반환 → 미션 통과 시 다 끝났으면 `startRewardUntil(오늘 잠금시각)` 자동. 실제 폰에서 전 흐름(잠금시각 설정→미션 통과→"🎉 모두 끝냈어요" 문구→잠금시각까지 자유→자동 재잠금) 깔끔하게 동작 확인. **다음: 17-7(서버) 부모 원격 설정 — 부모가 자녀별 잠금시각/허용앱/보상 설정 → 자녀 폰 동기화(서버→로컬). 잠그는 코드는 이미 로컬을 읽어 무변경.** (상세 ⑰ 17-7 참고)
+> 마지막 업데이트: 2026-07-01 — ⑰ **17-7a ✓ DB 표 `child_settings`** (부모가 자녀별 잠금시각/허용앱/보상 저장, RLS: 부모 쓰기·학생 읽기전용). 17-6 완료(모든 미션 완료→잠금시각까지 자유) 뒤 착수. **배경: 지금 학생 화면의 잠금·허용앱 설정은 테스트용 "부모 대역" → 17-7에서 부모 계정으로 옮기고 학생은 못 바꾸게.** **다음 17-7b: 부모 화면(`parent_home_page`)에서 잠금시각 설정 → child_settings upsert. 이후 17-7c 자녀 폰 동기화+학생화면 설정 제거, 17-7d 허용앱 원격.** (상세 ⑰ 17-7 참고)
 
 ## 무엇을 만들고 있나
 교재 업로드 → AI 출제(수학) → 학생 풀이 → 채점·재출제 → 통과 → 학부모 통과 알림.
@@ -168,7 +168,11 @@
     - [x] **17-6a (로컬 기계장치) ✓ (2026-06-30)** — 서버·RLS 변경 0(순수 폰 안 작업). `MainActivity.kt`에 `setLockTime/getLockTime`(매일 잠금시각 hour:minute 로컬 저장=부모설정 사본) + `startRewardUntil(epochMs)`(보상을 "절대 시각까지"로; 기존 `startReward(minutes)`와 별개) 추가. BlockerService는 이미 `reward_until` 절대시각 비교라 **무변경**. `app_block_page.dart`에 **🌙 매일 잠금 시각 카드**(showTimePicker로 시각 선택 + "모든 미션 완료(테스트)" 버튼 → 오늘 그 시각 epoch로 `startRewardUntil` 호출; 과거 시각이면 안내). flutter analyze 통과. 실제 폰(SM S948N) 빌드·설치 확인: 시각 설정·"모든 미션 완료" 누르니 **자유 시간 켜져 차단 풀림(앱 안 튕김=정상)**. ⚠️ 차단 스위치는 접근성 ON일 때만 켜지는 게 의도된 안전장치(테스트는 adb로 접근성 ON). **자동 재잠금(잠금시각 도달 시) 최종 눈확인은 다음에 폰 다시 붙여 마무리.**
     - [x] **17-6b ✓ (2026-07-01): 진짜 트리거 연결** — `record-mission`(service_role+student_id)이 "오늘(KST) 승인 반 최신 batch 다 passed?" 계산해 `all_missions_done` 반환. `student_mission_page._finish`가 통과 시 이 값을 받아 `_grantReward(allDone)`: 다 끝났고 잠금시각 설정됐으면 `startRewardUntil(오늘 잠금시각)`, 아니면(일부만/미설정/지난 시각) `startReward(5분)`. 통과 화면에 "🎉 오늘 미션을 모두 끝냈어요!" 문구(`_allDone`). record-mission 재배포(Verify JWT ON). flutter analyze 통과. 실제 폰에서 전 흐름 확인.
       - ⚠️ 배포 사고(해결): record-mission 코드를 실수로 **record-attempt에 붙여 배포** → record-attempt가 덮임. 각 함수 원본을 `Get-Content ... -Raw -Encoding UTF8 | Set-Clipboard`로 클립보드에 넣어 각각 원상복구/재배포. **교훈: 대시보드 붙여넣기 전에 "지금 연 함수 이름"과 "붙일 코드"가 같은지 확인.** (긴 코드는 채팅에 붙여넣지 말고 클립보드 명령으로 — 채팅 텍스트가 클립보드를 덮음.)
-  - [ ] **17-7 (그 다음, 서버): 부모 원격 설정** — DB 표(부모가 자녀별 잠금시각/허용앱/보상 설정) + 부모 화면 + 자녀 폰 동기화(서버→로컬). 잠그는 코드는 안 바뀜(이미 로컬을 읽음). 후보 #2 "부모 원격 설정"과 동일.
+  - [진행중] **17-7 (서버): 부모 원격 설정** — DB 표(부모가 자녀별 잠금시각/허용앱/보상 설정) + 부모 화면 + 자녀 폰 동기화(서버→로컬). 잠그는 코드는 안 바뀜(이미 로컬을 읽음). 후보 #2 "부모 원격 설정"과 동일. **배경(대표 지적): 지금 잠금시각·허용앱 설정이 학생 화면에 있는 건 로컬 enforcement 테스트용 "부모 대역"일 뿐 → 17-7에서 부모 계정으로 옮기고 학생은 못 바꾸게.**
+    - [x] **17-7a ✓ (2026-07-01): DB 표 `child_settings`** — `0015_child_settings.sql`: student_id(PK), lock_hour/lock_minute(-1=미설정), allowed_packages(text[]), reward_minutes(기본5), updated_at(수정마다 자동갱신 트리거 `touch_updated_at`). RLS: 부모=자기 자녀 것 for all(`is_my_child` 재사용, 0014), 학생=자기 것 select만(못 바꿈). Supabase SQL Editor Run 성공, REST로 표 존재+RLS 확인(200/빈배열).
+    - [ ] **17-7b (다음): 부모 화면에서 잠금시각 설정** — `parent_home_page.dart`에 자녀별 "매일 잠금 시각" 설정 UI → child_settings upsert. (허용앱은 자녀 폰 앱목록 필요 → 그다음. 우선 잠금시각만.)
+    - [ ] **17-7c: 자녀 폰 동기화** — 학생 앱이 로그인/홈 진입 시 자기 child_settings 읽어 로컬(setLockTime/setAllowedPackages)로 복사. 그다음 **학생 화면의 잠금시각·허용앱 직접설정 UI 제거/잠금**(학생은 못 바꾸게).
+    - [ ] **17-7d: 허용앱 원격 설정** — 자녀 폰이 앱목록을 서버에 올림 → 부모가 그중 골라 allowed_packages 저장 → 자녀 폰 동기화(Option1: 실제 깔린 앱에서 선택).
     - **그 외 남은 후보: 기기관리자(삭제 방지) / 제한된설정 온보딩 / AI 출제 방식 교체(문항 DB 준비 후).**
 - ⚠️ 연결 교훈: 이 노트북은 **유선 USB로 폰이 안 잡힘**(윈도우가 ADB 인터페이스를 안 만듦, `PID_6860` 단일기능). **무선(Wi-Fi) 디버깅으로 연결**해야 함. `adb`는 PATH에 없어 전체경로(`...\Android\Sdk\platform-tools\adb.exe`) 사용. 무선 연결: 폰 개발자옵션 → 무선 디버깅 → 페어링코드 → `adb pair ip:port code` → `adb connect ip:port`(포트 다름). IP/포트·코드는 매번 바뀜.
 - 다음(이번 작업 이후): 학생/학부모 앱 본격 제작 + DB 계정 기반 정리(7-3 권한, attempts.student_id, notifications.parent_id — 지금은 "이름만/계정없음"으로 우회 중). 별개로 **AI 출제 방식 실험**(AI=단원 분류만, 문제는 검증된 문항 DB에서 — questions 표 형식 같으면 출제 방식만 교체라 독립적, 점검 예정).
