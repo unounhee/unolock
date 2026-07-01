@@ -113,7 +113,46 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    return json({ ok: true, attempt_id: (attempt as any).id, score, passed, correct, total })
+    // 6) "오늘 모든 미션 완료?" 판단 (통과했을 때만) — 17-6b
+    //    학생의 승인된 반들 각각 "최신 수업(batch)"을 *오늘(KST)* 다 passed 했는지.
+    //    (모두 완료면 앱이 잠금시각까지 자유를 준다.)
+    let allMissionsDone = false
+    if (passed) {
+      // 오늘(KST) 0시를 UTC 순간으로.
+      const nowKst = new Date(Date.now() + 9 * 3600 * 1000)
+      const startUtcMs =
+        Date.UTC(nowKst.getUTCFullYear(), nowKst.getUTCMonth(), nowKst.getUTCDate()) -
+        9 * 3600 * 1000
+      const startISO = new Date(startUtcMs).toISOString()
+
+      const { data: mems } = await admin
+        .from("memberships").select("class_id")
+        .eq("student_id", studentId).eq("status", "approved")
+      const classIds = (mems ?? []).map((m: any) => m.class_id)
+
+      let missionCount = 0
+      let done = true
+      for (const cid of classIds) {
+        const { data: latest } = await admin
+          .from("lesson_batches").select("id")
+          .eq("class_id", cid).order("created_at", { ascending: false }).limit(1)
+        if (!latest || latest.length === 0) continue // 이 반은 오늘 수업(미션) 없음 → 건너뜀
+        missionCount++
+        const { data: pass } = await admin
+          .from("attempts").select("id")
+          .eq("student_id", studentId).eq("batch_id", (latest[0] as any).id)
+          .eq("passed", true).gte("created_at", startISO).limit(1)
+        if (!pass || pass.length === 0) { done = false; break }
+      }
+      allMissionsDone = missionCount > 0 && done
+    }
+
+    return json({
+      ok: true,
+      attempt_id: (attempt as any).id,
+      score, passed, correct, total,
+      all_missions_done: allMissionsDone,
+    })
   } catch (e) {
     return json({ error: (e as Error)?.message ?? String(e) }, 500)
   }

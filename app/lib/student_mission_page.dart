@@ -39,6 +39,7 @@ class _StudentMissionPageState extends State<StudentMissionPage> {
   bool _locked = false;
   bool _busy = false; // 재출제 중
   int _attemptNo = 1; // 재출제 회차
+  bool _allDone = false; // 오늘 모든 미션 완료(통과 화면 문구용)
   final List<String> _given = []; // 각 문제에 학생이 낸 답(기록용)
 
   @override
@@ -175,22 +176,45 @@ class _StudentMissionPageState extends State<StudentMissionPage> {
     final total = _questions.length;
     final pass = _correctCount * 5 >= total * 4; // 80%
     // 서버에 결과 기록(실패해도 학생 화면은 막지 않음).
-    _recordMission(pass);
+    // 서버가 "오늘 모든 미션 완료?"도 함께 알려준다(통과일 때만 true 가능).
+    final allDone = await _recordMission(pass);
     if (pass) {
       await _unlock();
-      // 통과 보상: 5분간 자유 시간(차단 모드일 때 풀림). 미션 하나당 짧은 보상.
-      // (모든 미션 완료 시 "학부모 설정 시각까지" 큰 자유 — 별도 설계 예정)
-      try {
-        await _lockChannel.invokeMethod('startReward', {'minutes': 5});
-      } catch (_) {}
+      _allDone = allDone;
+      await _grantReward(allDone);
       setState(() => _phase = _Phase.passed);
     } else {
       setState(() => _phase = _Phase.failed);
     }
   }
 
+  // 통과 보상 부여.
+  //  - 모든 미션 완료 + 잠금시각 설정됨 → 오늘 그 시각까지 자유(startRewardUntil)
+  //  - 그 외(일부만 완료 / 잠금시각 미설정 / 이미 지난 시각) → 5분 짧은 자유
+  Future<void> _grantReward(bool allDone) async {
+    try {
+      if (allDone) {
+        final lt = await _lockChannel.invokeMethod('getLockTime');
+        final lock = Map<String, dynamic>.from(lt as Map);
+        final h = (lock['hour'] as num?)?.toInt() ?? -1;
+        final m = (lock['minute'] as num?)?.toInt() ?? 0;
+        if (h >= 0) {
+          final now = DateTime.now();
+          final target = DateTime(now.year, now.month, now.day, h, m);
+          if (target.isAfter(now)) {
+            await _lockChannel.invokeMethod(
+                'startRewardUntil', {'until': target.millisecondsSinceEpoch});
+            return;
+          }
+        }
+      }
+      await _lockChannel.invokeMethod('startReward', {'minutes': 5});
+    } catch (_) {}
+  }
+
   // 풀이 결과를 서버가 재채점해 student_id 로 기록.
-  Future<void> _recordMission(bool passed) async {
+  // 반환: 서버가 판단한 "오늘 모든 미션 완료" 여부(기록 실패 시 false).
+  Future<bool> _recordMission(bool passed) async {
     try {
       final items = [
         for (var i = 0; i < _questions.length; i++)
@@ -203,13 +227,16 @@ class _StudentMissionPageState extends State<StudentMissionPage> {
             'student_answer': i < _given.length ? _given[i] : '',
           }
       ];
-      await supabase.functions.invoke('record-mission', body: {
+      final res = await supabase.functions.invoke('record-mission', body: {
         'batch_id': _batchId,
         'attempt_no': _attemptNo,
         'items': items,
       });
+      final data = res.data;
+      return data is Map && data['all_missions_done'] == true;
     } catch (_) {
       // 기록 실패는 무시(학생 경험 우선).
+      return false;
     }
   }
 
@@ -473,6 +500,16 @@ class _StudentMissionPageState extends State<StudentMissionPage> {
             const SizedBox(height: 8),
             const Text('미션 통과! 폰이 열렸어요 🔓',
                 style: TextStyle(fontSize: 20)),
+            if (_allDone) ...[
+              const SizedBox(height: 12),
+              Text('🎉 오늘 미션을 모두 끝냈어요!\n잠금 시각까지 자유예요.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 15,
+                      height: 1.5,
+                      color: Colors.indigo.shade700,
+                      fontWeight: FontWeight.w600)),
+            ],
             const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,
