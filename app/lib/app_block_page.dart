@@ -112,42 +112,6 @@ class _AppBlockPageState extends State<AppBlockPage>
     setState(() => _blockMode = on);
   }
 
-  // 매일 잠금 시각 고르기(지금은 부모 대역으로 학생 폰에서 직접 선택).
-  Future<void> _pickLockTime() async {
-    final init = _lockHour >= 0
-        ? TimeOfDay(hour: _lockHour, minute: _lockMinute)
-        : const TimeOfDay(hour: 23, minute: 0);
-    final picked = await showTimePicker(context: context, initialTime: init);
-    if (picked == null) return;
-    await _channel.invokeMethod(
-        'setLockTime', {'hour': picked.hour, 'minute': picked.minute});
-    setState(() {
-      _lockHour = picked.hour;
-      _lockMinute = picked.minute;
-    });
-  }
-
-  // 테스트: "오늘 모든 미션 완료" 가정 → 오늘 잠금 시각까지 자유.
-  // (17-6b에서 미션 통과 시 자동 호출되게 연결. 지금은 손으로 확인.)
-  Future<void> _freeUntilLockTime() async {
-    if (_lockHour < 0) return;
-    final now = DateTime.now();
-    final target =
-        DateTime(now.year, now.month, now.day, _lockHour, _lockMinute);
-    if (!target.isAfter(now)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('잠금 시각이 이미 지났어요. 미래 시각으로 정해야 자유 시간이 생겨요.')),
-        );
-      }
-      return;
-    }
-    await _channel.invokeMethod(
-        'startRewardUntil', {'until': target.millisecondsSinceEpoch});
-    _pollReward();
-  }
-
   String _lockTimeLabel() {
     if (_lockHour < 0) return '아직 설정 안 함';
     final h = _lockHour.toString().padLeft(2, '0');
@@ -258,8 +222,8 @@ class _AppBlockPageState extends State<AppBlockPage>
     );
   }
 
-  // 매일 잠금 시각 카드 — "모든 미션 완료 시 이 시각까지 자유".
-  // (부모가 정하는 값. 지금은 학생 폰에서 직접 고르고, 17-7에서 서버 동기화.)
+  // 매일 잠금 시각 카드 — 읽기 전용(부모가 앱에서 정함).
+  // 학생은 못 바꾼다. 값은 학생 홈에서 child_settings → 로컬로 동기화됨(17-7c).
   Widget _lockTimeCard() {
     final set = _lockHour >= 0;
     return Card(
@@ -277,7 +241,7 @@ class _AppBlockPageState extends State<AppBlockPage>
                       style: TextStyle(
                           fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
-                Text(_lockTimeLabel(),
+                Text(set ? _lockTimeLabel() : '부모 설정 대기',
                     style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -285,25 +249,18 @@ class _AppBlockPageState extends State<AppBlockPage>
               ],
             ),
             const SizedBox(height: 8),
-            const Text(
-              '오늘 미션을 모두 통과하면 이 시각까지 자유롭게 쓰고, 그 시각에 다시 잠겨요.',
-              style: TextStyle(fontSize: 13),
-            ),
-            const SizedBox(height: 10),
             Row(
               children: [
-                OutlinedButton.icon(
-                  onPressed: _pickLockTime,
-                  icon: const Icon(Icons.schedule),
-                  label: Text(set ? '시각 바꾸기' : '시각 정하기'),
-                ),
-                const SizedBox(width: 8),
-                if (set)
-                  FilledButton.icon(
-                    onPressed: _freeUntilLockTime,
-                    icon: const Icon(Icons.celebration),
-                    label: const Text('모든 미션 완료 (테스트)'),
+                const Icon(Icons.lock_outline, size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    set
+                        ? '부모님이 정한 시각이에요. 오늘 미션을 모두 끝내면 이 시각까지 자유예요.'
+                        : '부모님이 앱에서 잠금 시각을 정하면 여기에 표시돼요.',
+                    style: const TextStyle(fontSize: 13, color: Colors.grey),
                   ),
+                ),
               ],
             ),
           ],

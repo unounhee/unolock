@@ -58,12 +58,33 @@ class _StudentHomePageState extends State<StudentHomePage>
     if (state == AppLifecycleState.resumed) _setupLockBaseline();
   }
 
-  // 차단을 기본 상태로 켜두고(항상 차단), 현재 잠금 상태를 읽는다.
+  // 차단을 기본 상태로 켜두고(항상 차단), 부모 설정을 로컬로 동기화하고, 잠금 상태를 읽는다.
   Future<void> _setupLockBaseline() async {
     try {
       await _lockChannel.invokeMethod('setBlockMode', {'on': true});
     } catch (_) {}
+    await _syncParentSettings();
     await _pollLock();
+  }
+
+  // 부모가 정한 설정(child_settings)을 읽어 폰 로컬로 복사(서버→로컬).
+  // BlockerService는 로컬만 읽으므로, 한 번 동기화되면 인터넷 없어도 그 값으로 잠긴다.
+  Future<void> _syncParentSettings() async {
+    try {
+      final id = supabase.auth.currentUser?.id;
+      if (id == null) return;
+      final s = await supabase
+          .from('child_settings')
+          .select('lock_hour, lock_minute')
+          .eq('student_id', id)
+          .maybeSingle();
+      if (s == null) return; // 부모가 아직 아무것도 안 정함
+      final h = (s['lock_hour'] as num?)?.toInt() ?? -1;
+      final m = (s['lock_minute'] as num?)?.toInt() ?? 0;
+      await _lockChannel.invokeMethod('setLockTime', {'hour': h, 'minute': m});
+    } catch (_) {
+      // 오프라인 등 실패 시 마지막으로 동기화된 로컬 값 유지.
+    }
   }
 
   // 접근성 켜짐 여부 + 남은 자유 시간을 읽어 카드에 반영.

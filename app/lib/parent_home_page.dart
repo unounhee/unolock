@@ -54,10 +54,18 @@ class _ParentHomePageState extends State<ParentHomePage> {
             .eq('passed', true)
             .order('created_at', ascending: false)
             .limit(20);
+        // 이 자녀의 잠금 설정(부모가 정한 값). 없으면 미설정(-1).
+        final setting = await supabase
+            .from('child_settings')
+            .select('lock_hour, lock_minute')
+            .eq('student_id', sid)
+            .maybeSingle();
         children.add({
           'id': sid,
           'name': name,
           'passes': List<Map<String, dynamic>>.from(passes),
+          'lock_hour': (setting?['lock_hour'] as num?)?.toInt() ?? -1,
+          'lock_minute': (setting?['lock_minute'] as num?)?.toInt() ?? 0,
         });
       }
       setState(() {
@@ -106,6 +114,47 @@ class _ParentHomePageState extends State<ParentHomePage> {
       return '연결 코드를 찾을 수 없어요. 자녀 화면의 코드를 확인해 주세요.';
     }
     return raw;
+  }
+
+  String _lockTimeLabel(int h, int m) {
+    if (h < 0) return '아직 설정 안 함';
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+  }
+
+  // 자녀의 "매일 잠금 시각"을 정해 서버(child_settings)에 저장.
+  // 자녀 폰이 이 값을 읽어 로컬로 동기화 → 그 시각에 자동 잠금(17-7c).
+  Future<void> _pickLockTime(Map<String, dynamic> child) async {
+    final sid = child['id'] as String;
+    final curH = child['lock_hour'] as int? ?? -1;
+    final curM = child['lock_minute'] as int? ?? 0;
+    final init = curH >= 0
+        ? TimeOfDay(hour: curH, minute: curM)
+        : const TimeOfDay(hour: 22, minute: 0);
+    final picked = await showTimePicker(context: context, initialTime: init);
+    if (picked == null) return;
+    try {
+      await supabase.from('child_settings').upsert({
+        'student_id': sid,
+        'lock_hour': picked.hour,
+        'lock_minute': picked.minute,
+      });
+      setState(() {
+        child['lock_hour'] = picked.hour;
+        child['lock_minute'] = picked.minute;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  '잠금 시각을 ${_lockTimeLabel(picked.hour, picked.minute)}로 정했어요.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('저장 실패: $e')));
+      }
+    }
   }
 
   String _dateLabel(String? iso) {
@@ -217,6 +266,9 @@ class _ParentHomePageState extends State<ParentHomePage> {
 
   Widget _childCard(Map<String, dynamic> c) {
     final passes = List<Map<String, dynamic>>.from(c['passes'] ?? const []);
+    final lh = c['lock_hour'] as int? ?? -1;
+    final lm = c['lock_minute'] as int? ?? 0;
+    final lockSet = lh >= 0;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -232,7 +284,37 @@ class _ParentHomePageState extends State<ParentHomePage> {
                         fontSize: 17, fontWeight: FontWeight.bold)),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
+            // 매일 잠금 시각 (부모가 정함 → 자녀 폰이 동기화)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.indigo.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.nightlight_round,
+                      size: 20, color: Colors.indigo),
+                  const SizedBox(width: 8),
+                  const Text('매일 잠금 시각',
+                      style: TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 8),
+                  Text(_lockTimeLabel(lh, lm),
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: lockSet ? Colors.indigo : Colors.grey)),
+                  const Spacer(),
+                  OutlinedButton(
+                    onPressed: () => _pickLockTime(c),
+                    child: Text(lockSet ? '바꾸기' : '정하기'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
             if (passes.isEmpty)
               const Text('아직 통과한 미션이 없어요.',
                   style: TextStyle(color: Colors.grey))
